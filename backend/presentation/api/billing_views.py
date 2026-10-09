@@ -3,13 +3,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from application.services.billing_record_service import BillingRecordService
-from infrastructure.mock.mock_billing_record_provider import (
-    MockBillingRecordProvider,
+from infrastructure.database.django_billing_record_provider import (
+    DjangoBillingRecordProvider,
 )
 
 
 billing_record_service = BillingRecordService(
-    billing_record_provider=MockBillingRecordProvider()
+    billing_record_provider=DjangoBillingRecordProvider()
 )
 
 
