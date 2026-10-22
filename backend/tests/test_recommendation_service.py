@@ -171,3 +171,187 @@ class RecommendationServiceTests(SimpleTestCase):
             "Invalid workflow transition",
         ):
             service.evaluate_record_by_id("rec_001")
+
+
+class FakeBillingRecordRepository:
+
+    def __init__(self):
+        self.status_updates = []
+
+    def update_status(self, record_id, status):
+        self.status_updates.append(
+            {
+                "recordId": record_id,
+                "status": status,
+            }
+        )
+
+
+class FakeRecommendationRepository:
+
+    def __init__(self):
+        self.atomic_calls = []
+
+    def store_revision_and_mark_ready(
+        self,
+        record_id,
+        recommendation_data,
+    ):
+        self.atomic_calls.append(
+            {
+                "recordId": record_id,
+                "recommendation": recommendation_data,
+            }
+        )
+
+
+class RecommendationPersistenceTests(SimpleTestCase):
+
+    def test_status_is_persisted_as_pending_before_evaluation(self):
+        billing_repository = FakeBillingRecordRepository()
+
+        service = RecommendationService(
+            recommendation_provider=FakeRecommendationProvider(
+                response={
+                    "recommendation": "APPROVE_RECOMMENDED",
+                    "confidence": 0.95,
+                }
+            ),
+            billing_record_provider=FakeBillingRecordProvider(
+                {
+                    "recordId": "rec_001",
+                    "status": "OCR_COMPLETE",
+                }
+            ),
+            workflow_service=WorkflowService(),
+            billing_record_repository=billing_repository,
+        )
+
+        service.evaluate_record_by_id("rec_001")
+
+        self.assertEqual(
+            billing_repository.status_updates[0],
+            {
+                "recordId": "rec_001",
+                "status": "RECOMMENDATION_PENDING",
+            },
+        )
+
+    def test_success_uses_atomic_recommendation_persistence(self):
+        billing_repository = FakeBillingRecordRepository()
+        recommendation_repository = FakeRecommendationRepository()
+
+        recommendation = {
+            "recommendation": "APPROVE_RECOMMENDED",
+            "confidence": 0.95,
+        }
+
+        service = RecommendationService(
+            recommendation_provider=FakeRecommendationProvider(
+                response=recommendation,
+            ),
+            billing_record_provider=FakeBillingRecordProvider(
+                {
+                    "recordId": "rec_001",
+                    "status": "OCR_COMPLETE",
+                }
+            ),
+            workflow_service=WorkflowService(),
+            billing_record_repository=billing_repository,
+            recommendation_repository=recommendation_repository,
+        )
+
+        result = service.evaluate_record_by_id("rec_001")
+
+        self.assertEqual(
+            result["status"],
+            "RECOMMENDATION_READY",
+        )
+
+        self.assertEqual(
+            len(recommendation_repository.atomic_calls),
+            1,
+        )
+
+        self.assertEqual(
+            recommendation_repository.atomic_calls[0]["recordId"],
+            "rec_001",
+        )
+
+        self.assertEqual(
+            recommendation_repository.atomic_calls[0]["recommendation"],
+            recommendation,
+        )
+
+    def test_retryable_failure_leaves_record_pending(self):
+        billing_repository = FakeBillingRecordRepository()
+        recommendation_repository = FakeRecommendationRepository()
+
+        service = RecommendationService(
+            recommendation_provider=FakeRecommendationProvider(
+                error=IntegrationException(
+                    "TEAM_A_UNAVAILABLE",
+                    "Team A service is unavailable.",
+                    status_code=503,
+                    retryable=True,
+                )
+            ),
+            billing_record_provider=FakeBillingRecordProvider(
+                {
+                    "recordId": "rec_001",
+                    "status": "OCR_COMPLETE",
+                }
+            ),
+            workflow_service=WorkflowService(),
+            billing_record_repository=billing_repository,
+            recommendation_repository=recommendation_repository,
+        )
+
+        result = service.evaluate_record_by_id("rec_001")
+
+        self.assertTrue(result["pending"])
+
+        self.assertEqual(
+            billing_repository.status_updates,
+            [
+                {
+                    "recordId": "rec_001",
+                    "status": "RECOMMENDATION_PENDING",
+                }
+            ],
+        )
+
+        self.assertEqual(
+            recommendation_repository.atomic_calls,
+            [],
+        )
+
+    def test_already_pending_record_is_not_written_pending_again(self):
+        billing_repository = FakeBillingRecordRepository()
+
+        service = RecommendationService(
+            recommendation_provider=FakeRecommendationProvider(
+                response={
+                    "recommendation": "REVIEW_REQUIRED",
+                    "confidence": 0.70,
+                }
+            ),
+            billing_record_provider=FakeBillingRecordProvider(
+                {
+                    "recordId": "rec_001",
+                    "status": "RECOMMENDATION_PENDING",
+                }
+            ),
+            workflow_service=WorkflowService(),
+            billing_record_repository=billing_repository,
+        )
+
+        service.evaluate_record_by_id("rec_001")
+
+        self.assertNotIn(
+            {
+                "recordId": "rec_001",
+                "status": "RECOMMENDATION_PENDING",
+            },
+            billing_repository.status_updates,
+        )
