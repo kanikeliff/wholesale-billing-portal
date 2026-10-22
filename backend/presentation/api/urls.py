@@ -4,6 +4,7 @@ from presentation.api.health_views import health_view
 from presentation.api.billing_views import (
     BillingRecordDetailView,
     BillingRecordValidationView,
+    BillingRecordRecommendationView,
 )
 
 
@@ -24,5 +25,11 @@ urlpatterns = [
         "billing-records/<str:record_id>/validate/",
         BillingRecordValidationView.as_view(),
         name="billing-record-validation",
+    ),
+
+    path(
+        "billing-records/<str:record_id>/evaluate/",
+        BillingRecordRecommendationView.as_view(),
+        name="billing-record-evaluate",
     ),
 ]

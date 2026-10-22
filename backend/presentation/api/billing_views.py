@@ -4,10 +4,14 @@ from rest_framework.views import APIView
 
 from application.services.billing_record_service import BillingRecordService
 from application.services.billing_validation_service import BillingValidationService
+from application.services.recommendation_service import RecommendationService
+from application.services.workflow_service import WorkflowService
 from application.validators.billing_record_validator import BillingRecordValidator
+from core.exceptions.integration_exception import IntegrationException
 from infrastructure.mock.mock_billing_record_provider import (
     MockBillingRecordProvider,
 )
+from infrastructure.team_a.mock_team_a_adapter import MockTeamAAdapter
 
 
 billing_record_provider = MockBillingRecordProvider()
@@ -19,6 +23,12 @@ billing_record_service = BillingRecordService(
 billing_validation_service = BillingValidationService(
     billing_record_provider=billing_record_provider,
     validator=BillingRecordValidator(),
+)
+
+recommendation_service = RecommendationService(
+    recommendation_provider=MockTeamAAdapter(),
+    billing_record_provider=billing_record_provider,
+    workflow_service=WorkflowService(),
 )
 
 
@@ -65,4 +75,52 @@ class BillingRecordValidationView(APIView):
                     "message": str(error),
                 },
                 status=status.HTTP_404_NOT_FOUND,
+            )
+
+
+class BillingRecordRecommendationView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request, record_id):
+        try:
+            result = recommendation_service.evaluate_record_by_id(
+                record_id
+            )
+
+            if result.get("pending"):
+                return Response(
+                    result,
+                    status=status.HTTP_202_ACCEPTED,
+                )
+
+            return Response(
+                result,
+                status=status.HTTP_200_OK,
+            )
+
+        except ValueError as error:
+            message = str(error)
+
+            if message == "Billing record not found.":
+                return Response(
+                    {
+                        "code": "BILLING_RECORD_NOT_FOUND",
+                        "message": message,
+                    },
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            return Response(
+                {
+                    "code": "INVALID_WORKFLOW_TRANSITION",
+                    "message": message,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        except IntegrationException as error:
+            return Response(
+                error.to_dict(),
+                status=status.HTTP_502_BAD_GATEWAY,
             )
