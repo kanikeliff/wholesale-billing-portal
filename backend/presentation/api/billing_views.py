@@ -1,3 +1,4 @@
+import os
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -14,13 +15,28 @@ from infrastructure.mock.mock_billing_record_provider import (
     MockBillingRecordProvider,
 )
 from infrastructure.team_a.mock_team_a_adapter import MockTeamAAdapter
-
+from infrastructure.database.django_billing_record_repository import (
+    DjangoBillingRecordRepository,
+)
 
 # -------------------------------------------------------------------
 # Service composition
 # -------------------------------------------------------------------
 
-billing_record_provider = MockBillingRecordProvider()
+use_mock_provider = (
+    os.getenv(
+        "USE_MOCK_BILLING_PROVIDER",
+        "true",
+    ).lower()
+    == "true"
+)
+
+if use_mock_provider:
+    billing_record_provider = MockBillingRecordProvider()
+    billing_record_repository = None
+else:
+    billing_record_provider = DjangoBillingRecordRepository()
+    billing_record_repository = billing_record_provider
 
 billing_record_service = BillingRecordService(
     billing_record_provider=billing_record_provider
@@ -34,16 +50,20 @@ billing_validation_service = BillingValidationService(
 recommendation_service = RecommendationService(
     recommendation_provider=MockTeamAAdapter(),
     billing_record_provider=billing_record_provider,
+    billing_record_repository=billing_record_repository,
     workflow_service=WorkflowService(),
 )
 
 correction_service = CorrectionService(
     billing_record_provider=billing_record_provider,
+    correction_repository=billing_record_repository,
+    billing_record_repository=billing_record_repository,
     workflow_service=WorkflowService(),
 )
 
 human_decision_service = HumanDecisionService(
     billing_record_provider=billing_record_provider,
+    billing_record_repository=billing_record_repository,
     workflow_service=WorkflowService(),
 )
 
