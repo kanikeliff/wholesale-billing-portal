@@ -1,9 +1,11 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from application.services.correction_service import CorrectionService
+
 from application.services.billing_record_service import BillingRecordService
 from application.services.billing_validation_service import BillingValidationService
+from application.services.correction_service import CorrectionService
+from application.services.human_decision_service import HumanDecisionService
 from application.services.recommendation_service import RecommendationService
 from application.services.workflow_service import WorkflowService
 from application.validators.billing_record_validator import BillingRecordValidator
@@ -13,6 +15,10 @@ from infrastructure.mock.mock_billing_record_provider import (
 )
 from infrastructure.team_a.mock_team_a_adapter import MockTeamAAdapter
 
+
+# -------------------------------------------------------------------
+# Service composition
+# -------------------------------------------------------------------
 
 billing_record_provider = MockBillingRecordProvider()
 
@@ -30,10 +36,150 @@ recommendation_service = RecommendationService(
     billing_record_provider=billing_record_provider,
     workflow_service=WorkflowService(),
 )
+
 correction_service = CorrectionService(
     billing_record_provider=billing_record_provider,
     workflow_service=WorkflowService(),
 )
+
+human_decision_service = HumanDecisionService(
+    billing_record_provider=billing_record_provider,
+    workflow_service=WorkflowService(),
+)
+
+
+# -------------------------------------------------------------------
+# Billing record list
+# -------------------------------------------------------------------
+
+class BillingRecordListView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        records = billing_record_service.list_records()
+
+        return Response(
+            {
+                "count": len(records),
+                "records": records,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+# -------------------------------------------------------------------
+# Billing record detail
+# -------------------------------------------------------------------
+
+class BillingRecordDetailView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request, record_id):
+        try:
+            record = billing_record_service.get_record(record_id)
+
+            return Response(
+                record,
+                status=status.HTTP_200_OK,
+            )
+
+        except ValueError as error:
+            return Response(
+                {
+                    "code": "BILLING_RECORD_NOT_FOUND",
+                    "message": str(error),
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+
+# -------------------------------------------------------------------
+# Billing validation
+# -------------------------------------------------------------------
+
+class BillingRecordValidationView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request, record_id):
+        try:
+            result = billing_validation_service.validate_record(
+                record_id
+            )
+
+            return Response(
+                result,
+                status=status.HTTP_200_OK,
+            )
+
+        except ValueError as error:
+            return Response(
+                {
+                    "code": "BILLING_RECORD_NOT_FOUND",
+                    "message": str(error),
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+
+# -------------------------------------------------------------------
+# Team A recommendation
+# -------------------------------------------------------------------
+
+class BillingRecordRecommendationView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request, record_id):
+        try:
+            result = recommendation_service.evaluate_record_by_id(
+                record_id
+            )
+
+            if result.get("pending"):
+                return Response(
+                    result,
+                    status=status.HTTP_202_ACCEPTED,
+                )
+
+            return Response(
+                result,
+                status=status.HTTP_200_OK,
+            )
+
+        except ValueError as error:
+            message = str(error)
+
+            if message == "Billing record not found.":
+                return Response(
+                    {
+                        "code": "BILLING_RECORD_NOT_FOUND",
+                        "message": message,
+                    },
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            return Response(
+                {
+                    "code": "INVALID_WORKFLOW_TRANSITION",
+                    "message": message,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        except IntegrationException as error:
+            return Response(
+                error.to_dict(),
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+
+# -------------------------------------------------------------------
+# BOL-level field correction
+# -------------------------------------------------------------------
+
 class BillingRecordFieldCorrectionView(APIView):
     authentication_classes = []
     permission_classes = []
@@ -44,7 +190,9 @@ class BillingRecordFieldCorrectionView(APIView):
                 return Response(
                     {
                         "code": "CORRECTED_VALUE_REQUIRED",
-                        "message": "Request body must include 'value'.",
+                        "message": (
+                            "Request body must include 'value'."
+                        ),
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
@@ -91,6 +239,10 @@ class BillingRecordFieldCorrectionView(APIView):
             )
 
 
+# -------------------------------------------------------------------
+# Line-item correction
+# -------------------------------------------------------------------
+
 class BillingRecordLineItemCorrectionView(APIView):
     authentication_classes = []
     permission_classes = []
@@ -107,7 +259,9 @@ class BillingRecordLineItemCorrectionView(APIView):
                 return Response(
                     {
                         "code": "CORRECTED_VALUE_REQUIRED",
-                        "message": "Request body must include 'value'.",
+                        "message": (
+                            "Request body must include 'value'."
+                        ),
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
@@ -163,67 +317,36 @@ class BillingRecordLineItemCorrectionView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-class BillingRecordDetailView(APIView):
-    authentication_classes = []
-    permission_classes = []
 
-    def get(self, request, record_id):
-        try:
-            record = billing_record_service.get_record(record_id)
+# -------------------------------------------------------------------
+# Human decision
+# -------------------------------------------------------------------
 
-            return Response(
-                record,
-                status=status.HTTP_200_OK,
-            )
-
-        except ValueError as error:
-            return Response(
-                {
-                    "code": "BILLING_RECORD_NOT_FOUND",
-                    "message": str(error),
-                },
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-
-class BillingRecordValidationView(APIView):
+class BillingRecordDecisionView(APIView):
     authentication_classes = []
     permission_classes = []
 
     def post(self, request, record_id):
         try:
-            result = billing_validation_service.validate_record(record_id)
+            decision = request.data.get("decision")
 
-            return Response(
-                result,
-                status=status.HTTP_200_OK,
-            )
-
-        except ValueError as error:
-            return Response(
-                {
-                    "code": "BILLING_RECORD_NOT_FOUND",
-                    "message": str(error),
-                },
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-
-class BillingRecordRecommendationView(APIView):
-    authentication_classes = []
-    permission_classes = []
-
-    def post(self, request, record_id):
-        try:
-            result = recommendation_service.evaluate_record_by_id(
-                record_id
-            )
-
-            if result.get("pending"):
+            if decision is None:
                 return Response(
-                    result,
-                    status=status.HTTP_202_ACCEPTED,
+                    {
+                        "code": "DECISION_REQUIRED",
+                        "message": (
+                            "Request body must include 'decision'."
+                        ),
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
+
+            result = human_decision_service.submit_decision(
+                record_id,
+                decision,
+                decided_by=request.data.get("decidedBy"),
+                reason=request.data.get("reason"),
+            )
 
             return Response(
                 result,
@@ -242,16 +365,19 @@ class BillingRecordRecommendationView(APIView):
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
+            if "Invalid workflow transition" in message:
+                return Response(
+                    {
+                        "code": "INVALID_WORKFLOW_TRANSITION",
+                        "message": message,
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
+
             return Response(
                 {
-                    "code": "INVALID_WORKFLOW_TRANSITION",
+                    "code": "INVALID_DECISION",
                     "message": message,
                 },
-                status=status.HTTP_409_CONFLICT,
-            )
-
-        except IntegrationException as error:
-            return Response(
-                error.to_dict(),
-                status=status.HTTP_502_BAD_GATEWAY,
+                status=status.HTTP_400_BAD_REQUEST,
             )

@@ -339,4 +339,168 @@ class BillingRecordCorrectionApiTests(SimpleTestCase):
         self.assertTrue(
             response.data["requiresReevaluation"]
         )
-        
+class BillingRecordDecisionApiTests(SimpleTestCase):
+
+    def setUp(self):
+        self.client = APIClient()
+
+    @patch(
+        "presentation.api.billing_views."
+        "human_decision_service.submit_decision"
+    )
+    def test_approve_decision_returns_200(
+        self,
+        mock_submit,
+    ):
+        mock_submit.return_value = {
+            "recordId": "rec_001",
+            "decision": "APPROVE",
+            "previousStatus": "RECOMMENDATION_READY",
+            "status": "APPROVED",
+            "decidedBy": "user_001",
+            "reason": "Reviewed and verified.",
+        }
+
+        response = self.client.post(
+            "/api/v1/billing-records/rec_001/decision/",
+            {
+                "decision": "APPROVE",
+                "decidedBy": "user_001",
+                "reason": "Reviewed and verified.",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["status"],
+            "APPROVED",
+        )
+
+    def test_missing_decision_returns_400(self):
+        response = self.client.post(
+            "/api/v1/billing-records/rec_001/decision/",
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.data["code"],
+            "DECISION_REQUIRED",
+        )
+
+    @patch(
+        "presentation.api.billing_views."
+        "human_decision_service.submit_decision"
+    )
+    def test_invalid_decision_returns_400(
+        self,
+        mock_submit,
+    ):
+        mock_submit.side_effect = ValueError(
+            "Decision must be APPROVE, REJECT, or EXCEPTION."
+        )
+
+        response = self.client.post(
+            "/api/v1/billing-records/rec_001/decision/",
+            {
+                "decision": "DELETE",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.data["code"],
+            "INVALID_DECISION",
+        )
+
+    @patch(
+        "presentation.api.billing_views."
+        "human_decision_service.submit_decision"
+    )
+    def test_unknown_record_returns_404(
+        self,
+        mock_submit,
+    ):
+        mock_submit.side_effect = ValueError(
+            "Billing record not found."
+        )
+
+        response = self.client.post(
+            "/api/v1/billing-records/missing/decision/",
+            {
+                "decision": "APPROVE",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(
+            response.data["code"],
+            "BILLING_RECORD_NOT_FOUND",
+        )
+
+    @patch(
+        "presentation.api.billing_views."
+        "human_decision_service.submit_decision"
+    )
+    def test_invalid_workflow_returns_409(
+        self,
+        mock_submit,
+    ):
+        mock_submit.side_effect = ValueError(
+            "Invalid workflow transition: "
+            "UPLOADED -> APPROVED"
+        )
+
+        response = self.client.post(
+            "/api/v1/billing-records/rec_001/decision/",
+            {
+                "decision": "APPROVE",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(
+            response.data["code"],
+            "INVALID_WORKFLOW_TRANSITION",
+        )
+
+
+class BillingRecordListApiTests(SimpleTestCase):
+
+    def setUp(self):
+        self.client = APIClient()
+
+    @patch(
+        "presentation.api.billing_views."
+        "billing_record_service.list_records"
+    )
+    def test_list_records_returns_200(
+        self,
+        mock_list,
+    ):
+        mock_list.return_value = [
+            {
+                "recordId": "rec_001",
+                "status": "RECOMMENDATION_READY",
+            },
+            {
+                "recordId": "rec_002",
+                "status": "NEEDS_REVIEW",
+            },
+        ]
+
+        response = self.client.get(
+            "/api/v1/billing-records/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 2)
+        self.assertEqual(
+            len(response.data["records"]),
+            2,
+        )        

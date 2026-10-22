@@ -10,3 +10,13 @@ class BillingRecordService:
             raise ValueError("Billing record not found.")
 
         return record
+    def list_records(self):
+        if not hasattr(
+            self.billing_record_provider,
+            "list_records",
+        ):
+            raise ValueError(
+                "Billing record listing is not supported."
+            )
+
+        return self.billing_record_provider.list_records()
