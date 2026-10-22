@@ -5,10 +5,36 @@ from presentation.api.billing_views import (
     BillingRecordDetailView,
     BillingRecordValidationView,
     BillingRecordRecommendationView,
+    BillingRecordFieldCorrectionView,
+    BillingRecordLineItemCorrectionView,
+    BillingRecordDecisionView,
+    BillingRecordListView,
 )
 
 
 urlpatterns = [
+    path(
+    "billing-records/",
+    BillingRecordListView.as_view(),
+    name="billing-record-list",
+    ),
+    path(
+    "billing-records/<str:record_id>/decision/",
+    BillingRecordDecisionView.as_view(),
+    name="billing-record-decision",
+    ),
+    path(
+    "billing-records/<str:record_id>/fields/<str:field_name>/",
+    BillingRecordFieldCorrectionView.as_view(),
+    name="billing-record-field-correction",
+    ),
+
+    path(
+    "billing-records/<str:record_id>/line-items/<str:line_item_id>/<str:field_name>/",
+    BillingRecordLineItemCorrectionView.as_view(),
+    name="billing-record-line-item-correction",
+    ),
+
     path(
         "health/",
         health_view,

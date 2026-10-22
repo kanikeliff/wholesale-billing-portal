@@ -9,10 +9,14 @@ class RecommendationService:
         recommendation_provider,
         billing_record_provider=None,
         workflow_service=None,
+        billing_record_repository=None,
+        recommendation_repository=None,
     ):
         self.recommendation_provider = recommendation_provider
         self.billing_record_provider = billing_record_provider
         self.workflow_service = workflow_service
+        self.billing_record_repository = billing_record_repository
+        self.recommendation_repository = recommendation_repository
 
     def evaluate_record(self, record):
         if record is None:
@@ -34,10 +38,14 @@ class RecommendationService:
 
         current_status = record.get("status")
 
-        # If already pending, this is a retry attempt.
         if current_status != RecordStatus.RECOMMENDATION_PENDING.value:
             self.workflow_service.validate_transition(
                 current_status,
+                RecordStatus.RECOMMENDATION_PENDING.value,
+            )
+
+            self._persist_status(
+                record_id,
                 RecordStatus.RECOMMENDATION_PENDING.value,
             )
 
@@ -47,6 +55,11 @@ class RecommendationService:
             self.workflow_service.validate_transition(
                 RecordStatus.RECOMMENDATION_PENDING.value,
                 RecordStatus.RECOMMENDATION_READY.value,
+            )
+
+            self._persist_success(
+                record_id,
+                recommendation,
             )
 
             return {
@@ -66,3 +79,41 @@ class RecommendationService:
                 }
 
             raise
+
+    def _persist_status(self, record_id, status):
+        if self.billing_record_repository is None:
+            return
+
+        self.billing_record_repository.update_status(
+            record_id,
+            status,
+        )
+
+    def _persist_success(
+        self,
+        record_id,
+        recommendation,
+    ):
+        if self.recommendation_repository is not None:
+            atomic_method = getattr(
+                self.recommendation_repository,
+                "store_revision_and_mark_ready",
+                None,
+            )
+
+            if atomic_method is not None:
+                atomic_method(
+                    record_id,
+                    recommendation,
+                )
+                return
+
+            self.recommendation_repository.store_revision(
+                record_id,
+                recommendation,
+            )
+
+        self._persist_status(
+            record_id,
+            RecordStatus.RECOMMENDATION_READY.value,
+        )

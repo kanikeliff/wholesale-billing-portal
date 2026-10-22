@@ -1,5 +1,11 @@
 class MockBillingRecordProvider:
+    def list_records(self):
+        record = self.get_by_id("rec_001")
 
+        if record is None:
+            return []
+
+        return [record]
     def get_by_id(self, record_id):
         if record_id != "rec_001":
             return None
