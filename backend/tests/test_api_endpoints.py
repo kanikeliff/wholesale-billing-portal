@@ -183,3 +183,160 @@ class BillingRecordRecommendationApiTests(SimpleTestCase):
             response.data["code"],
             "TEAM_A_BAD_REQUEST",
         )
+class BillingRecordCorrectionApiTests(SimpleTestCase):
+
+    def setUp(self):
+        self.client = APIClient()
+
+    @patch(
+        "presentation.api.billing_views."
+        "correction_service.correct_record_field"
+    )
+    def test_record_field_correction_returns_200(
+        self,
+        mock_correct,
+    ):
+        mock_correct.return_value = {
+            "recordId": "rec_001",
+            "field": "carrier",
+            "oldValue": "ABC Transport",
+            "newValue": "XYZ Transport",
+            "status": "RECOMMENDATION_PENDING",
+            "requiresReevaluation": True,
+        }
+
+        response = self.client.patch(
+            "/api/v1/billing-records/rec_001/fields/carrier/",
+            {
+                "value": "XYZ Transport",
+                "reviewedBy": "user_001",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["status"],
+            "RECOMMENDATION_PENDING",
+        )
+
+    def test_missing_value_returns_400(self):
+        response = self.client.patch(
+            "/api/v1/billing-records/rec_001/fields/carrier/",
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.data["code"],
+            "CORRECTED_VALUE_REQUIRED",
+        )
+
+    @patch(
+        "presentation.api.billing_views."
+        "correction_service.correct_record_field"
+    )
+    def test_unknown_record_returns_404(
+        self,
+        mock_correct,
+    ):
+        mock_correct.side_effect = ValueError(
+            "Billing record not found."
+        )
+
+        response = self.client.patch(
+            "/api/v1/billing-records/missing/fields/carrier/",
+            {
+                "value": "XYZ Transport",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    @patch(
+        "presentation.api.billing_views."
+        "correction_service.correct_record_field"
+    )
+    def test_invalid_correction_returns_400(
+        self,
+        mock_correct,
+    ):
+        mock_correct.side_effect = ValueError(
+            "Field 'status' is not editable."
+        )
+
+        response = self.client.patch(
+            "/api/v1/billing-records/rec_001/fields/status/",
+            {
+                "value": "APPROVED",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.data["code"],
+            "INVALID_CORRECTION",
+        )
+
+    @patch(
+        "presentation.api.billing_views."
+        "correction_service.correct_record_field"
+    )
+    def test_invalid_workflow_returns_409(
+        self,
+        mock_correct,
+    ):
+        mock_correct.side_effect = ValueError(
+            "Billing record cannot be corrected while in UPLOADED status."
+        )
+
+        response = self.client.patch(
+            "/api/v1/billing-records/rec_001/fields/carrier/",
+            {
+                "value": "XYZ Transport",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(
+            response.data["code"],
+            "INVALID_WORKFLOW_TRANSITION",
+        )
+
+    @patch(
+        "presentation.api.billing_views."
+        "correction_service.correct_line_item_field"
+    )
+    def test_line_item_correction_returns_200(
+        self,
+        mock_correct,
+    ):
+        mock_correct.return_value = {
+            "recordId": "rec_001",
+            "lineItemId": "1",
+            "field": "grossGallons",
+            "oldValue": 8550.0,
+            "newValue": 8545,
+            "status": "RECOMMENDATION_PENDING",
+            "requiresReevaluation": True,
+        }
+
+        response = self.client.patch(
+            "/api/v1/billing-records/rec_001/"
+            "line-items/1/grossGallons/",
+            {
+                "value": 8545,
+                "reviewedBy": "user_001",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            response.data["requiresReevaluation"]
+        )
+        
