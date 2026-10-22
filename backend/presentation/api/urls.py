@@ -1,19 +1,28 @@
 from django.urls import path
 
 from presentation.api.health_views import health_view
-from presentation.api.billing_views import BillingRecordDetailView
+from presentation.api.billing_views import (
+    BillingRecordDetailView,
+    BillingRecordValidationView,
+)
 
 
 urlpatterns = [
     path(
         "health/",
         health_view,
-        name="health"
+        name="health",
     ),
 
     path(
         "billing-records/<str:record_id>/",
         BillingRecordDetailView.as_view(),
-        name="billing-record-detail"
+        name="billing-record-detail",
+    ),
+
+    path(
+        "billing-records/<str:record_id>/validate/",
+        BillingRecordValidationView.as_view(),
+        name="billing-record-validation",
     ),
 ]
