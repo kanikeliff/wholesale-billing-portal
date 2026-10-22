@@ -33,6 +33,7 @@ class WorkflowService:
         },
 
         RecordStatus.RECOMMENDATION_READY: {
+            RecordStatus.RECOMMENDATION_PENDING,
             RecordStatus.APPROVED,
             RecordStatus.REJECTED,
             RecordStatus.NEEDS_REVIEW,
@@ -41,13 +42,12 @@ class WorkflowService:
     }
 
     def can_transition(self, current_status, new_status):
-
         current = RecordStatus(current_status)
         new = RecordStatus(new_status)
 
         allowed = self.ALLOWED_TRANSITIONS.get(
             current,
-            set()
+            set(),
         )
 
         return new in allowed
@@ -55,12 +55,11 @@ class WorkflowService:
     def validate_transition(
         self,
         current_status,
-        new_status
+        new_status,
     ):
-
         if not self.can_transition(
             current_status,
-            new_status
+            new_status,
         ):
             raise ValueError(
                 f"Invalid workflow transition: "
