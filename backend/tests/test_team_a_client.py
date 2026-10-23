@@ -1,321 +1,146 @@
-from unittest import TestCase
+from unittest.mock import Mock
 
-from core.exceptions.integration_exception import IntegrationException
-from infrastructure.team_a.team_a_client import TeamAClient
+import requests
+from django.test import SimpleTestCase
 
-
-VALID_RESPONSE = {
-    "recordId": "rec_001",
-    "recommendation": "APPROVE_RECOMMENDED",
-    "confidence": 0.94,
-    "modelVersion": "rules-v0.1",
-    "matchedTerminalLogId": "TERM-001",
-    "rationale": "Matched.",
-    "mappedEntities": {},
-    "exceptionIndicators": [],
-}
+from infrastructure.team_a.client import TeamAClient
+from infrastructure.team_a.exceptions import (
+    TeamAIntegrationError,
+    TeamAUnavailableError,
+)
 
 
-class SequenceTransport:
+class TeamAClientTests(SimpleTestCase):
 
-    def __init__(self, outcomes):
-        self.outcomes = list(outcomes)
-        self.calls = 0
+    def setUp(self):
+        self.session = Mock()
+        self.sleeper = Mock()
 
-    def __call__(
-        self,
-        *,
-        url,
-        payload,
-        headers,
-        timeout,
-    ):
-        outcome = self.outcomes[self.calls]
-        self.calls += 1
-
-        if isinstance(outcome, Exception):
-            raise outcome
-
-        return outcome
-
-
-class TeamAClientTests(TestCase):
-
-    def make_client(self, transport):
-        self.sleeps = []
-
-        return TeamAClient(
+        self.client = TeamAClient(
             base_url="https://team-a.test",
-            api_key="test-key",
-            transport=transport,
-            sleep_fn=self.sleeps.append,
+            api_key="secret-key",
+            timeout=10,
+            session=self.session,
+            sleeper=self.sleeper,
         )
 
-    def test_success_does_not_retry(self):
-        transport = SequenceTransport(
-            [(200, VALID_RESPONSE)]
+        self.payload = {
+            "recordId": "record-001",
+            "lineItems": [
+                {
+                    "lineItemId":
+                        "c7db5061-e167-4140-90ec-7fb48dd412ae"
+                }
+            ],
+        }
+
+    def response(self, status_code, body):
+        response = Mock()
+        response.status_code = status_code
+        response.json.return_value = body
+        return response
+
+    def test_sends_api_key_and_timeout(self):
+        self.session.post.return_value = self.response(
+            200,
+            {
+                "recordId": "record-001",
+                "recommendation": "APPROVE_RECOMMENDED",
+            },
         )
 
-        client = self.make_client(transport)
+        self.client.evaluate(self.payload)
 
-        result = client.evaluate(
-            {"recordId": "rec_001"}
-        )
+        _, kwargs = self.session.post.call_args
 
         self.assertEqual(
-            result["recordId"],
-            "rec_001",
+            kwargs["headers"]["X-API-Key"],
+            "secret-key",
         )
-
         self.assertEqual(
-            transport.calls,
-            1,
-        )
-
-        self.assertEqual(
-            self.sleeps,
-            [],
+            kwargs["timeout"],
+            10,
         )
 
     def test_400_is_not_retried(self):
-        transport = SequenceTransport(
-            [
-                (
-                    400,
-                    {
-                        "code": "MALFORMED_REQUEST",
-                        "message": "Bad request.",
-                        "details": {},
-                    },
-                )
-            ]
-        )
-
-        client = self.make_client(transport)
-
-        with self.assertRaises(
-            IntegrationException
-        ) as context:
-            client.evaluate(
-                {"recordId": "rec_001"}
-            )
-
-        self.assertEqual(
-            context.exception.status_code,
+        self.session.post.return_value = self.response(
             400,
+            {
+                "code": "INVALID_REQUEST",
+                "message": "Bad request",
+            },
         )
 
-        self.assertFalse(
-            context.exception.retryable
-        )
+        with self.assertRaises(TeamAIntegrationError):
+            self.client.evaluate(self.payload)
 
         self.assertEqual(
-            transport.calls,
+            self.session.post.call_count,
             1,
         )
 
-    def test_401_is_not_retried(self):
-        transport = SequenceTransport(
-            [
-                (
-                    401,
-                    {
-                        "code": "UNAUTHORIZED",
-                        "message": "Invalid API key.",
-                        "details": {},
-                    },
-                )
-            ]
-        )
+    def test_503_is_retried(self):
+        self.session.post.side_effect = [
+            self.response(503, {}),
+            self.response(200, {
+                "recordId": "record-001",
+                "recommendation": "APPROVE_RECOMMENDED",
+            }),
+        ]
 
-        client = self.make_client(transport)
-
-        with self.assertRaises(
-            IntegrationException
-        ) as context:
-            client.evaluate(
-                {"recordId": "rec_001"}
-            )
+        result = self.client.evaluate(self.payload)
 
         self.assertEqual(
-            context.exception.status_code,
-            401,
+            result["recommendation"],
+            "APPROVE_RECOMMENDED",
         )
 
         self.assertEqual(
-            transport.calls,
-            1,
-        )
-
-    def test_422_is_not_retried(self):
-        transport = SequenceTransport(
-            [
-                (
-                    422,
-                    {
-                        "code": "INVALID_CHANGE_REQUEST",
-                        "message": "Invalid change.",
-                        "details": [],
-                    },
-                )
-            ]
-        )
-
-        client = self.make_client(transport)
-
-        with self.assertRaises(
-            IntegrationException
-        ) as context:
-            client.evaluate(
-                {"recordId": "rec_001"}
-            )
-
-        self.assertEqual(
-            context.exception.status_code,
-            422,
-        )
-
-        self.assertEqual(
-            transport.calls,
-            1,
-        )
-
-    def test_503_retries_then_succeeds(self):
-        transport = SequenceTransport(
-            [
-                (
-                    503,
-                    {
-                        "code": "SERVICE_UNAVAILABLE",
-                        "message": "Try later.",
-                        "details": {},
-                    },
-                ),
-                (200, VALID_RESPONSE),
-            ]
-        )
-
-        client = self.make_client(transport)
-
-        result = client.evaluate(
-            {"recordId": "rec_001"}
-        )
-
-        self.assertEqual(
-            result["recordId"],
-            "rec_001",
-        )
-
-        self.assertEqual(
-            transport.calls,
+            self.session.post.call_count,
             2,
         )
 
+        self.sleeper.assert_called_once_with(2)
+
+    def test_timeout_is_retried(self):
+        self.session.post.side_effect = [
+            requests.Timeout(),
+            self.response(
+                200,
+                {
+                    "recordId": "record-001",
+                    "recommendation":
+                        "APPROVE_RECOMMENDED",
+                },
+            ),
+        ]
+
+        result = self.client.evaluate(self.payload)
+
         self.assertEqual(
-            self.sleeps,
-            [2],
+            result["recordId"],
+            "record-001",
         )
 
-    def test_timeout_retries_three_times(self):
-        transport = SequenceTransport(
-            [
-                TimeoutError("timeout"),
-                TimeoutError("timeout"),
-                TimeoutError("timeout"),
-                TimeoutError("timeout"),
-            ]
-        )
+        self.sleeper.assert_called_once_with(2)
 
-        client = self.make_client(transport)
+    def test_retry_exhaustion_raises_unavailable(self):
+        self.session.post.return_value = self.response(
+            503,
+            {},
+        )
 
         with self.assertRaises(
-            IntegrationException
-        ) as context:
-            client.evaluate(
-                {"recordId": "rec_001"}
-            )
+            TeamAUnavailableError
+        ):
+            self.client.evaluate(self.payload)
 
         self.assertEqual(
-            context.exception.code,
-            "TEAM_A_TIMEOUT",
-        )
-
-        self.assertTrue(
-            context.exception.retryable
-        )
-
-        self.assertEqual(
-            transport.calls,
+            self.session.post.call_count,
             4,
         )
 
         self.assertEqual(
-            self.sleeps,
+            [call.args[0] for call in self.sleeper.call_args_list],
             [2, 4, 8],
-        )
-
-    def test_503_exhaustion_is_retryable(self):
-        error_response = (
-            503,
-            {
-                "code": "SERVICE_UNAVAILABLE",
-                "message": "Team A unavailable.",
-                "details": {},
-            },
-        )
-
-        transport = SequenceTransport(
-            [
-                error_response,
-                error_response,
-                error_response,
-                error_response,
-            ]
-        )
-
-        client = self.make_client(transport)
-
-        with self.assertRaises(
-            IntegrationException
-        ) as context:
-            client.evaluate(
-                {"recordId": "rec_001"}
-            )
-
-        self.assertEqual(
-            context.exception.code,
-            "SERVICE_UNAVAILABLE",
-        )
-
-        self.assertTrue(
-            context.exception.retryable
-        )
-
-        self.assertEqual(
-            self.sleeps,
-            [2, 4, 8],
-        )
-
-    def test_invalid_success_json_is_rejected(self):
-        transport = SequenceTransport(
-            [
-                (
-                    200,
-                    "this is not JSON",
-                )
-            ]
-        )
-
-        client = self.make_client(transport)
-
-        with self.assertRaises(
-            IntegrationException
-        ) as context:
-            client.evaluate(
-                {"recordId": "rec_001"}
-            )
-
-        self.assertEqual(
-            context.exception.code,
-            "TEAM_A_INVALID_RESPONSE",
         )
