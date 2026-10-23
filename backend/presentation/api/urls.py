@@ -12,7 +12,17 @@ from presentation.api.billing_views import (
 )
 
 
+from presentation.api.upload_views import (
+    BillingRecordUploadView,
+)
+
 urlpatterns = [
+    path(
+        "billing-records/upload/",
+        BillingRecordUploadView.as_view(),
+        name="billing-record-upload",
+    ),
+
     path(
     "billing-records/",
     BillingRecordListView.as_view(),
