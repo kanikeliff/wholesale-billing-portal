@@ -1,3 +1,4 @@
+
 import {
   BrowserRouter,
   Navigate,
@@ -5,15 +6,18 @@ import {
   Routes,
 } from "react-router-dom";
 
+import type { ReactNode } from "react";
+
 import DashboardPage from "./pages/DashboardPage";
 import UploadPage from "./pages/UploadPage";
 import ReviewPage from "./pages/ReviewPage";
 import LoginPage from "./pages/LoginPage";
 
+// Protect pages from unauthenticated access.
 function ProtectedRoute({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   const isAuthenticated =
     localStorage.getItem("isAuthenticated") === "true";
@@ -22,23 +26,26 @@ function ProtectedRoute({
     return <Navigate to="/login" replace />;
   }
 
-  return children;
+  return <>{children}</>;
 }
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Default route */}
         <Route
           path="/"
           element={<Navigate to="/dashboard" replace />}
         />
 
+        {/* Login page */}
         <Route
           path="/login"
           element={<LoginPage />}
         />
 
+        {/* Protected dashboard */}
         <Route
           path="/dashboard"
           element={
@@ -48,6 +55,7 @@ function App() {
           }
         />
 
+        {/* Protected BOL upload */}
         <Route
           path="/upload"
           element={
@@ -57,6 +65,7 @@ function App() {
           }
         />
 
+        {/* Protected BOL review */}
         <Route
           path="/records/:id/review"
           element={
@@ -65,11 +74,18 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* Unknown routes */}
+        <Route
+          path="*"
+          element={<Navigate to="/dashboard" replace />}
+        />
       </Routes>
     </BrowserRouter>
   );
 }
 
 export default App;
+
 
 

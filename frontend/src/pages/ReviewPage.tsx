@@ -1,4 +1,8 @@
-import { useEffect, useState } from "react";
+import "./ReviewPage.css";
+import BolPdfViewer from "../components/BolPdfViewer";
+import { validateBillingRecord } from "../api/validationApi";
+import { evaluateBillingRecord } from "../api/recommendationApi";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import {
@@ -8,231 +12,525 @@ import {
 } from "../api/billingRecordApi";
 
 import { mockBols } from "../data/mockBol";
+import { updateBillingField, updateBillingLineItem } from "../api/correctionApi";
+
+type FieldKey = keyof BillingRecord["fields"];
+type DraftValues = Record<string, string>;
+
+type ValidationIssue = {
+  code: string;
+  severity: string;
+  field?: string;
+  message: string;
+  lineItemId?: string | number;
+};
+
+type ValidationResponse = {
+  recordId: string;
+  valid: boolean;
+  blockingIssues: ValidationIssue[];
+  reviewFlags: ValidationIssue[];
+  nextStatus: string;
+};
+
+type EvaluationResponse = {
+  recordId: string;
+  status: string;
+  pending: boolean;
+  recommendation: {
+    recordId?: string;
+    recommendation: string;
+    confidence: number | null;
+    modelVersion?: string;
+    rationale?: string;
+    matchedTerminalLogId?: string | null;
+    mappedEntities?: {
+      carrierCode?: string | null;
+      lineItems?: {
+        lineItemId: string | number;
+        e3StockId?: string | null;
+        standardName?: string | null;
+      }[];
+    };
+  } | null;
+};
+
+
+
+
+const shipmentFields: {
+  key: FieldKey;
+  label: string;
+}[] = [
+  { key: "bolNumber", label: "BOL Number" },
+  { key: "contractLifting", label: "Contract / Lifting" },
+  { key: "origin", label: "Origin" },
+  { key: "supplier", label: "Supplier" },
+  { key: "carrier", label: "Carrier" },
+  { key: "transactionDate", label: "Transaction Date" },
+  { key: "destination", label: "Destination" },
+];
+
+function toText(value: unknown): string {
+  return value == null ? "" : String(value);
+}
+
+function needsReview(field: ExtractedField<unknown>) {
+  return (
+    field.quality === "LOW_CONFIDENCE" ||
+    field.quality === "MISSING" ||
+    field.quality === "UNREADABLE" ||
+    field.quality === "INVALID"
+  );
+}
+
+function confidenceText(field: ExtractedField<unknown>) {
+  if (field.confidence == null) {
+    return "Unavailable";
+  }
+
+  return `${Math.round(field.confidence * 100)}%`;
+}
+
+// Keep the existing mock data support.
+// Mock records are explicitly identified in the UI.
+function createMockBillingRecord(
+  mockRecord: (typeof mockBols)[number]
+): BillingRecord {
+  const makeField = <T,>(
+    value: T,
+    confidence: number,
+    quality: "OK" | "LOW_CONFIDENCE" = "OK"
+  ): ExtractedField<T> => ({
+    rawValue: value == null ? null : String(value),
+    normalizedValue: value,
+    confidence,
+    quality,
+  });
+
+  return {
+    recordId: mockRecord.recordId,
+    status: mockRecord.status,
+
+    document: {
+      id: `doc-${mockRecord.recordId}`,
+      fileName: `BOL-${mockRecord.bolNumber}.pdf`,
+      fileUrl: "",
+    },
+
+    fields: {
+      bolNumber: makeField(mockRecord.bolNumber, 0.96),
+      contractLifting: makeField(
+        "Pending Mapping",
+        0.78,
+        "LOW_CONFIDENCE"
+      ),
+      origin: makeField("Terminal Location", 0.91),
+      supplier: makeField(mockRecord.supplier, 0.95),
+      carrier: makeField(mockRecord.carrier, 0.89),
+      transactionDate: makeField("Oct 9, 2026", 0.93),
+      destination: makeField("Mirabito Facility", 0.88),
+    },
+
+    lineItems: [
+      {
+        lineItemId: "1",
+        product: makeField("Regular Gasoline", 0.87),
+        grossGallons: makeField(8550, 0.92),
+        netGallons: makeField(8500, 0.94),
+        e3StockId: makeField(
+          "Pending",
+          0.7,
+          "LOW_CONFIDENCE"
+        ),
+      },
+    ],
+
+    recommendation: null,
+  };
+}
+
+function createDraft(record: BillingRecord): DraftValues {
+  const draft: DraftValues = {};
+
+  shipmentFields.forEach(({ key }) => {
+    draft[key] = toText(record.fields[key].normalizedValue);
+  });
+
+  record.lineItems.forEach((item) => {
+    draft[`line-${item.lineItemId}-product`] =
+      toText(item.product.normalizedValue);
+
+    draft[`line-${item.lineItemId}-grossGallons`] =
+      toText(item.grossGallons.normalizedValue);
+
+    draft[`line-${item.lineItemId}-netGallons`] =
+      toText(item.netGallons.normalizedValue);
+
+    draft[`line-${item.lineItemId}-e3StockId`] =
+      toText(item.e3StockId.normalizedValue);
+  });
+
+  return draft;
+}
 
 export default function ReviewPage() {
   const { id } = useParams();
 
-  const [record, setRecord] = useState<BillingRecord | null>(null);
+  const [record, setRecord] = useState<BillingRecord | null>(
+    null
+  );
+  const [draft, setDraft] = useState<DraftValues>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isMock, setIsMock] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [validating, setValidating] = useState(false);
+  const [validationResult, setValidationResult] =
+  useState<unknown>(null);
 
-  const createMockBillingRecord = (
-    mockRecord: (typeof mockBols)[number]
-  ): BillingRecord => {
-    const makeField = <T,>(
-      value: T,
-      confidence: number,
-      quality: "OK" | "LOW_CONFIDENCE" = "OK"
-    ): ExtractedField<T> => ({
-      rawValue:
-        value === null || value === undefined
-          ? null
-          : String(value),
+const [validationError, setValidationError] = useState("");
 
-      normalizedValue: value,
-      confidence,
-      quality,
-    });
+const [evaluating, setEvaluating] = useState(false);
 
-    return {
-      recordId: mockRecord.recordId,
+const [evaluationResult, setEvaluationResult] =
+  useState<unknown>(null);
 
-      status: mockRecord.status,
+const [evaluationError, setEvaluationError] = useState("");
 
-      document: {
-        id: `doc-${mockRecord.recordId}`,
-        fileName: `BOL-${mockRecord.bolNumber}.pdf`,
-        fileUrl: "",
-      },
-
-      fields: {
-        bolNumber: makeField(
-          mockRecord.bolNumber,
-          0.96
-        ),
-
-        contractLifting: makeField(
-          "Pending Mapping",
-          0.78,
-          "LOW_CONFIDENCE"
-        ),
-
-        origin: makeField(
-          "Terminal Location",
-          0.91
-        ),
-
-        supplier: makeField(
-          mockRecord.supplier,
-          0.95
-        ),
-
-        carrier: makeField(
-          mockRecord.carrier,
-          0.89
-        ),
-
-        transactionDate: makeField(
-          "Oct 9, 2026",
-          0.93
-        ),
-
-        destination: makeField(
-          "Mirabito Facility",
-          0.88
-        ),
-      },
-
-      lineItems: [
-        {
-          lineItemId: 1,
-
-          product: makeField(
-            "Regular Gasoline",
-            0.87
-          ),
-
-          grossGallons: makeField(
-            8550,
-            0.92
-          ),
-
-          netGallons: makeField(
-            8500,
-            0.94
-          ),
-
-          e3StockId: makeField(
-            "Pending",
-            0.7,
-            "LOW_CONFIDENCE"
-          ),
-        },
-      ],
-
-      recommendation: null,
-    };
-  };
 
   useEffect(() => {
+    let active = true;
+
     if (!id) {
-      setError("Record ID is missing.");
       setLoading(false);
+      setError("Record ID is missing.");
       return;
     }
 
     setLoading(true);
     setError("");
+    setRecord(null);
+    setDraft({});
+    setIsMock(false);
+    setSaveMessage("");
+    setSaveError("");
 
     const loadRecord = async () => {
       try {
-        // First try the real Team B backend
-        const backendRecord =
-          await getBillingRecord(id);
+        // Load actual OCR data from Team B backend.
+        const backendRecord = await getBillingRecord(id);
+
+        if (!active) return;
 
         setRecord(backendRecord);
+        setDraft(createDraft(backendRecord));
       } catch (backendError) {
-        console.log(
-          "Backend record not found. Checking mock records...",
+        if (!active) return;
+
+        console.error(
+          "Backend billing record request failed:",
           backendError
         );
 
-        // If backend does not have it,
-        // use the dashboard mock record
         const mockRecord = mockBols.find(
           (bol) => bol.recordId === id
         );
 
         if (mockRecord) {
-          setRecord(
-            createMockBillingRecord(mockRecord)
-          );
+          const fallback = createMockBillingRecord(mockRecord);
+
+          setRecord(fallback);
+          setDraft(createDraft(fallback));
+          setIsMock(true);
         } else {
           setError(
-            "Billing record not found."
+            "Could not load this BOL from the backend."
           );
         }
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     loadRecord();
+
+    return () => {
+      active = false;
+    };
   }, [id]);
 
+  const originalValues = useMemo(
+    () => (record ? createDraft(record) : {}),
+    [record]
+  );
+
+  const hasChanges = Object.keys(draft).some(
+    (key) => draft[key] !== originalValues[key]
+  );
+
+const validation = validationResult as ValidationResponse | null;
+
+const evaluation =
+  evaluationResult as EvaluationResponse | null;
+
+const teamRecommendation = evaluation?.recommendation ?? null;
+
+const evaluationConfidence =
+  teamRecommendation?.confidence == null
+    ? "Unavailable"
+    : `${Math.round(teamRecommendation.confidence * 100)}%`;
+
+const recommendationLabel = (value: string) =>
+  value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+
+
+const blockingIssues = validation?.blockingIssues ?? [];
+const reviewFlags = validation?.reviewFlags ?? [];
+
+const formatValidationLabel = (value: string) =>
+  value
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+
+  const updateDraft = (key: string, value: string) => {
+    setSaveError("");
+    setSaveMessage("");
+    setDraft((previous) => ({
+      ...previous,
+      [key]: value,
+    }));
+  };
+
+  const discardChanges = () => {
+    setSaveMessage("");
+    setSaveError("");
+    if (record) {
+      setDraft(createDraft(record));
+    }
+  };
+  const runValidation = async () => {
+    if (!record || isMock || saving || validating || hasChanges) {
+      return;
+    }
+  
+    setValidating(true);
+    setValidationError("");
+    setValidationResult(null);
+  
+    try {
+      const result = await validateBillingRecord(record.recordId);
+      setValidationResult(result);
+    } catch (err) {
+      setValidationError(
+        err instanceof Error ? err.message : "Validation failed."
+      );
+    } finally {
+      setValidating(false);
+    }
+  };
+
+const refreshRecommendation = async () => {
+  if (
+    !record ||
+    isMock ||
+    saving ||
+    evaluating ||
+    validating ||
+    hasChanges
+  ) {
+    return;
+  }
+
+  setEvaluating(true);
+  setEvaluationError("");
+  setEvaluationResult(null);
+
+  try {
+    const result = await evaluateBillingRecord(record.recordId);
+    setEvaluationResult(result);
+
+    const updatedRecord = await getBillingRecord(record.recordId);
+    setRecord(updatedRecord);
+  } catch (err) {
+    setEvaluationError(
+      err instanceof Error
+        ? err.message
+        : "Recommendation evaluation failed."
+    );
+  } finally {
+    setEvaluating(false);
+  }
+};
+
+
+  // Only submit changed fields. Do not silently save mock/fallback data.
+  const saveChanges = async () => {
+    if (!record || isMock || saving || !hasChanges) return;
+    const original = createDraft(record);
+    const modifiedKeys = Object.keys(draft).filter(
+      (key) => draft[key] !== original[key]
+    );
+    const lineFields = ["product", "grossGallons", "netGallons", "e3StockId"] as const;
+    type PendingChange = {
+      key: string;
+      kind: "field" | "line";
+      fieldName: string;
+      lineItemId?: string | number;
+      value: string | number | null;
+    };
+    const pending: PendingChange[] = [];
+
+    for (const key of modifiedKeys) {
+      const shipment = shipmentFields.find((entry) => entry.key === key);
+      if (shipment) {
+        pending.push({
+          key,
+          kind: "field",
+          fieldName: shipment.key,
+          value: draft[key].trim() || null,
+        });
+        continue;
+      }
+      const line = record.lineItems.find((item) =>
+        lineFields.some((name) => `line-${item.lineItemId}-${name}` === key)
+      );
+      const lineName = lineFields.find(
+        (name) => line && `line-${line.lineItemId}-${name}` === key
+      );
+      if (!line || !lineName) {
+        setSaveError(`Unrecognized correction field: ${key}`);
+        return;
+      }
+      const raw = draft[key].trim();
+      let value: string | number | null = raw || null;
+      if (lineName === "grossGallons" || lineName === "netGallons") {
+        if (raw && (!Number.isFinite(Number(raw)) || Number(raw) < 0)) {
+          setSaveError(`${lineName} must be a non-negative number.`);
+          return;
+        }
+        value = raw ? Number(raw) : null;
+      }
+      pending.push({ key, kind: "line", fieldName: lineName, lineItemId: line.lineItemId, value });
+    }
+
+    setSaving(true);
+    setSaveError("");
+    setSaveMessage("");
+    const completed = new Set<string>();
+    let failure = "";
+    const reviewedBy = "user_001"; // Demo identity; replace with authenticated user ID.
+
+    for (const change of pending) {
+      try {
+        if (change.kind === "field") {
+          await updateBillingField(record.recordId, change.fieldName, change.value, reviewedBy);
+        } else {
+          await updateBillingLineItem(record.recordId, change.lineItemId!, change.fieldName, change.value, reviewedBy);
+        }
+        completed.add(change.key);
+      } catch (err) {
+        failure = err instanceof Error ? err.message : "Unknown API error";
+        break;
+      }
+    }
+
+    // Refresh from backend even after a partial success. Keep unsaved edits in the UI.
+    try {
+      const refreshed = await getBillingRecord(record.recordId);
+      const refreshedDraft = createDraft(refreshed);
+      const unverifiedEdits = modifiedKeys.filter(
+        (key) =>
+          !completed.has(key) ||
+          refreshedDraft[key] !== draft[key]
+      );
+      
+      // Keep edits that the backend has not confirmed.
+      for (const key of unverifiedEdits) {
+        refreshedDraft[key] = draft[key];
+      }
+      
+      setRecord(refreshed);
+      setDraft(refreshedDraft);
+
+      if (!failure && completed.size > 0) {
+        const unpersisted = [...completed].filter(
+          (key) => refreshedDraft[key] !== draft[key]
+        );
+        if (unpersisted.length) {
+          setSaveError(`API accepted ${completed.size} correction(s), but ${unpersisted.length} value(s) did not appear in the refreshed record. Persistence is not yet verified.`);
+        } else {
+          setSaveMessage(`${completed.size} correction(s) saved and confirmed by the refreshed API response. Database/audit persistence still needs verification.`);
+        }
+      }
+    } catch (refreshErr) {
+      const detail = refreshErr instanceof Error ? refreshErr.message : "Unknown refresh error";
+      setSaveError(`Correction requests completed: ${completed.size}/${pending.length}, but refreshing the record failed: ${detail}. Check backend state before retrying.`);
+    } finally {
+      setSaving(false);
+    }
+
+    if (failure) {
+      setSaveError(`Saved ${completed.size}/${pending.length} correction(s). Next request failed: ${failure}. Remaining edits are kept on screen.`);
+    }
+  };
+
   const renderField = (
+    key: string,
     label: string,
     field: ExtractedField<string | number | null>
   ) => {
-    const needsAttention =
-      field.quality === "LOW_CONFIDENCE" ||
-      field.quality === "MISSING" ||
-      field.quality === "UNREADABLE" ||
-      field.quality === "INVALID";
-
-    const displayValue =
-      field.normalizedValue === null
-        ? "Not available"
-        : String(field.normalizedValue);
-
-    const rawValue =
-      field.rawValue === null
-        ? "Not available"
-        : field.rawValue;
-
-    const confidence =
-      field.confidence === null
-        ? "Unavailable"
-        : `${Math.round(
-            field.confidence * 100
-          )}%`;
+    const warning = needsReview(field);
 
     return (
       <div
-        style={{
-          border: needsAttention
-            ? "1px solid orange"
-            : "1px solid #444",
-
-          borderRadius: "8px",
-          padding: "14px",
-          marginBottom: "14px",
-        }}
+        className={`review-field ${warning ? "warning" : ""}`}
+        key={key}
       >
-        <p>
-          <strong>{label}:</strong>{" "}
-          {displayValue}
-        </p>
+        <label className="review-field-label" htmlFor={key}>
+          {label}
+        </label>
 
-        <p>
-          <strong>
-            Raw OCR Value:
-          </strong>{" "}
-          {rawValue}
-        </p>
+        <input
+          id={key}
+          className="review-field-input"
+          type="text"
+          value={draft[key] ?? ""}
+          onChange={(event) =>
+            updateDraft(key, event.target.value)
+          }
+          disabled={saving}
+        />
 
-        <p>
-          <strong>
-            OCR Confidence:
-          </strong>{" "}
-          {confidence}
-        </p>
+        <div className="review-field-meta">
+          <span>OCR Confidence</span>
 
-        <p>
-          <strong>
-            Quality:
-          </strong>{" "}
-          {field.quality}
-        </p>
-
-        {needsAttention && (
-          <p
-            style={{
-              color: "orange",
-              fontWeight: "bold",
-            }}
+          <span
+            className={`review-confidence ${
+              field.confidence == null
+                ? "unavailable"
+                : warning
+                ? "low"
+                : ""
+            }`}
           >
-            ⚠ Review recommended
+            {confidenceText(field)}
+          </span>
+        </div>
+
+        <p className="review-field-raw">
+          Original OCR: {field.rawValue ?? "Not available"}
+        </p>
+
+        {warning && (
+          <p className="review-warning-text">
+            Review required: {(field.quality ?? "UNKNOWN").replace(/_/g, " ")}
           </p>
         )}
       </div>
@@ -241,577 +539,848 @@ export default function ReviewPage() {
 
   if (loading) {
     return (
-      <div
-        style={{
-          padding: "32px",
-          fontFamily: "Arial",
-        }}
-      >
-        <h2>
-          Loading billing record...
-        </h2>
-      </div>
+      <main className="review-page">
+        <p>Loading billing record...</p>
+      </main>
     );
   }
 
   if (error || !record) {
     return (
-      <div
-        style={{
-          padding: "32px",
-          fontFamily: "Arial",
-        }}
-      >
-        <Link to="/dashboard">
+      <main className="review-page">
+        <Link to="/dashboard" className="review-back-link">
           ← Back to Dashboard
         </Link>
 
-        <h1>
-          Unable to Load Record
-        </h1>
-
-        <p>
-          {error ||
-            "Billing record not found."}
-        </p>
-      </div>
+        <h1>Unable to Load Record</h1>
+        <p>{error || "Billing record not found."}</p>
+      </main>
     );
   }
 
+  
+  const bolImageMap: Record<string, string> = {
+    "566836": "/sample-bol-rec-001.png",
+    "2569495": "/sample-bol-rec-002.png",
+    "813492": "/sample-bol-rec-003.png",
+    "867187": "/sample-bol-rec-004.png",
+    "239680": "/sample-bol-rec-005.png",
+    "239681": "/sample-bol-rec-006.png",
+    "1996150": "/sample-bol-rec-007.png",
+    "868375": "/sample-bol-rec-008.png",
+    "831062": "/sample-bol-rec-009.png",
+    "1753617": "/sample-bol-rec-010.png",
+  };
+  
+  const bolNumber = String(
+    record.fields?.bolNumber?.normalizedValue ?? ""
+  );
+  
+  const documentUrl =
+    record.document?.fileUrl ||
+    bolImageMap[bolNumber] ||
+    "";
+  
+  const documentFileName =
+    record.document?.fileName ||
+    (documentUrl ? documentUrl.split("/").pop() ?? "Original BOL" : "Original BOL unavailable");
+
+
+ 
+
+
+  const isPdf = /\.pdf(?:[?#]|$)/i.test(documentUrl);
+  const recommendation = record.recommendation;
+
   return (
-    <div
-      style={{
-        padding: "32px",
-        fontFamily:
-          "Arial, sans-serif",
-      }}
-    >
-      <Link to="/dashboard">
-        ← Back to Dashboard
-      </Link>
+    <main className="review-page">
+      {/* PAGE HEADER */}
 
-      <h1>BOL Review</h1>
-
-      <p>
-        <strong>
-          Record ID:
-        </strong>{" "}
-        {record.recordId}
-      </p>
-
-      <p>
-        <strong>
-          Status:
-        </strong>{" "}
-        {record.status}
-      </p>
-
-      <p>
-        <strong>
-          File:
-        </strong>{" "}
-        {record.document.fileName}
-      </p>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns:
-            "1fr 1fr",
-          gap: "30px",
-          marginTop: "30px",
-          alignItems: "start",
-        }}
-      >
-        {/* ORIGINAL BOL */}
-
-        <div
-          style={{
-            border:
-              "1px solid #ccc",
-            borderRadius: "8px",
-            padding: "20px",
-          }}
-        >
-          <h2>
-            Original BOL
-          </h2>
-
-          {record.recordId ===
-          "rec_001" ? (
-            <>
-              <object
-                data="/sample-bol.pdf"
-                type="application/pdf"
-                width="100%"
-                height="750px"
-                style={{
-                  border:
-                    "1px solid #ccc",
-                  borderRadius:
-                    "8px",
-                  backgroundColor:
-                    "#ffffff",
-                }}
-              >
-                <div
-                  style={{
-                    padding: "20px",
-                  }}
-                >
-                  <p>
-                    PDF preview could
-                    not be displayed.
-                  </p>
-
-                  <a
-                    href="/sample-bol.pdf"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Open PDF
-                  </a>
-                </div>
-              </object>
-
-              <p
-                style={{
-                  marginTop:
-                    "12px",
-                }}
-              >
-                <a
-                  href="/sample-bol.pdf"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open BOL PDF in New
-                  Tab
-                </a>
-              </p>
-            </>
-          ) : (
-            <img
-              src={`/sample-bol-${record.recordId}.png`}
-              alt={`Original BOL ${record.recordId}`}
-              onError={(
-                event
-              ) => {
-                event.currentTarget.onerror =
-                  null;
-
-                event.currentTarget.src =
-                  "/sample-bol-rec_001.png";
-              }}
-              style={{
-                width: "100%",
-                height: "auto",
-                maxHeight:
-                  "800px",
-                objectFit:
-                  "contain",
-                borderRadius:
-                  "6px",
-                backgroundColor:
-                  "#ffffff",
-                display: "block",
-                margin: "0 auto",
-              }}
-            />
-          )}
-
-          <p
-            style={{
-              color: "#888",
-              fontSize: "14px",
-              marginTop: "12px",
-            }}
-          >
-            Original BOL document
-            preview.
+      <header className="review-header">
+        <div>
+          <h1>BOL Review Workspace</h1>
+          <p className="review-subtitle">
+            Verify OCR results against the original document.
           </p>
         </div>
 
-        {/* EXTRACTED BILLING INFO */}
+        <Link to="/dashboard" className="review-back-link">
+          ← Back to Dashboard
+        </Link>
+      </header>
 
-        <div
-          style={{
-            border:
-              "1px solid #ccc",
-            borderRadius: "8px",
-            padding: "20px",
-          }}
-        >
-          <h2>
-            Extracted Billing
-            Information
-          </h2>
+      <div className="review-record-info" style={{
+        marginBottom: "20px"
+      }}>
+        <span className="review-record-id">
+          Record: {record.recordId}
+        </span>
 
-          {renderField(
-            "BOL Number",
-            record.fields.bolNumber
-          )}
+        <span className="review-status">
+          {record.status.replace(/_/g, " ")}
+        </span>
 
-          {renderField(
-            "Contract / Lifting",
-            record.fields
-              .contractLifting
-          )}
-
-          {renderField(
-            "Origin",
-            record.fields.origin
-          )}
-
-          {renderField(
-            "Supplier",
-            record.fields.supplier
-          )}
-
-          {renderField(
-            "Carrier",
-            record.fields.carrier
-          )}
-
-          {renderField(
-            "Transaction Date",
-            record.fields
-              .transactionDate
-          )}
-
-          {renderField(
-            "Destination",
-            record.fields
-              .destination
-          )}
-        </div>
+        <span className="review-record-id">
+        {documentFileName}
+        </span>
       </div>
 
-      {/* PRODUCT LINE ITEMS */}
+      {isMock && (
+        <div className="review-message review-message-info"
+          style={{ marginBottom: "20px" }}
+        >
+          Demo data: The backend record could not be loaded.
+          These values come from the sample dataset.
+        </div>
+      )}
 
-      <div
-        style={{
-          border:
-            "1px solid #ccc",
-          borderRadius: "8px",
-          padding: "20px",
-          marginTop: "30px",
-        }}
+      {/* THREE-PANEL WORKSPACE */}
+
+      <div className="review-workspace">
+
+       
+{/* LEFT: DOCUMENT QUEUE */}
+
+<aside className="review-panel">
+  <div className="review-panel-header">
+    <h2>Document Queue</h2>
+    <p className="review-panel-subtitle">
+      Current PostgreSQL record
+    </p>
+  </div>
+
+  <div className="review-panel-body">
+    <div className="review-queue">
+      <Link
+        className="review-queue-item active"
+        to={`/records/${encodeURIComponent(record.recordId)}/review`}
       >
-        <h2>
-          Product Line Items
-        </h2>
+        <div className="review-queue-title">
+          {record.fields?.bolNumber?.normalizedValue
+            ? `BOL ${record.fields.bolNumber.normalizedValue}`
+            : record.recordId}
+        </div>
 
-        {record.lineItems.length ===
-          0 && (
-          <p>
-            No line items were
-            found.
-          </p>
-        )}
+        <div className="review-queue-details">
+          Record ID: {record.recordId}
+        </div>
 
-        {record.lineItems.map(
-          (item) => (
-            <div
-              key={
-                item.lineItemId
-              }
-              style={{
-                border:
-                  "1px solid #555",
-                borderRadius:
-                  "8px",
-                padding: "18px",
-                marginBottom:
-                  "20px",
-              }}
-            >
-              <h3>
-                Line Item{" "}
-                {item.lineItemId}
-              </h3>
+        <div className="review-queue-details">
+          {record.status.replace(/_/g, " ")}
+        </div>
 
-              {renderField(
-                "Product",
-                item.product
-              )}
+        <div className="review-queue-details">
+          Current document
+        </div>
+      </Link>
+    </div>
+  </div>
+</aside>
 
-              {renderField(
-                "Gross Gallons",
-                item.grossGallons
-              )}
+{/* CENTER: ORIGINAL BOL */}
 
-              {renderField(
-                "Net Gallons",
-                item.netGallons
-              )}
 
-              {renderField(
-                "E3 Stock ID",
-                item.e3StockId
+        <section className="review-panel">
+          <div className="review-panel-header">
+            <h2>Original BOL</h2>
+            <p className="review-panel-subtitle">
+            {documentFileName}
+            </p>
+          </div>
+
+          <div className="review-document-container">
+            {documentUrl ? (
+              isPdf ? (
+                <BolPdfViewer fileUrl={documentUrl} />
+
+              ) : (
+                <img
+                  src={documentUrl}
+                  alt={`Original BOL ${record.recordId}`}
+                  style={{
+                    width: "100%",
+                    height: "auto",
+                    background: "#fff",
+                  }}
+                />
+              )
+            ) : (
+              <p>
+                No source document URL is available
+                for this record.
+              </p>
+            )}
+          </div>
+
+          {documentUrl && (
+            <div className="review-document-actions">
+              <a
+                href={documentUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="review-document-link"
+              >
+                Open Original Document ↗
+              </a>
+            </div>
+          )}
+        </section>
+
+        {/* RIGHT: OCR REVIEW */}
+
+        <section className="review-panel">
+          <div className="review-panel-header">
+            <h2>Review & Verify</h2>
+            <p className="review-panel-subtitle">
+              Extracted billing information
+            </p>
+          </div>
+
+          <div className="review-panel-body">
+
+            <h3>Shipment Information</h3>
+
+            <div className="review-fields">
+              {shipmentFields.map(({ key, label }) =>
+                renderField(
+                  key,
+                  label,
+                  record.fields[key]
+                )
               )}
             </div>
-          )
-        )}
-      </div>
 
-      {/* TEAM A RECOMMENDATION */}
+            {/* PRODUCT LINE ITEMS */}
 
-      <div
+            <h3 style={{ marginTop: "25px" }}>
+              Product Line Items
+            </h3>
+
+            {record.lineItems.length === 0 && (
+              <p>No product line items found.</p>
+            )}
+
+            {record.lineItems.map((item) => (
+              <div
+                key={item.lineItemId}
+                className="review-line-item"
+              >
+                <h3>Line Item {item.lineItemId}</h3>
+
+                <div className="review-fields">
+                  {renderField(
+                    `line-${item.lineItemId}-product`,
+                    "Product",
+                    item.product
+                  )}
+
+                  {renderField(
+                    `line-${item.lineItemId}-grossGallons`,
+                    "Gross Gallons",
+                    item.grossGallons
+                  )}
+
+                  {renderField(
+                    `line-${item.lineItemId}-netGallons`,
+                    "Net Gallons",
+                    item.netGallons
+                  )}
+
+                  {renderField(
+                    `line-${item.lineItemId}-e3StockId`,
+                    "E3 Stock ID",
+                    item.e3StockId
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* TEAM A RECOMMENDATION */}
+
+            <div className="review-recommendation">
+              <h3>Team A Recommendation</h3>
+
+              {recommendation ? (
+                <>
+                  <p>
+                    <strong>Recommendation:</strong>{" "}
+                    {recommendation.recommendation}
+                  </p>
+
+                  <p>
+                    <strong>Confidence:</strong>{" "}
+                    {recommendation.confidence == null
+                      ? "Unavailable"
+                      : `${Math.round(
+                          recommendation.confidence * 100
+                        )}%`}
+                  </p>
+
+                  <p>
+                    <strong>Rationale:</strong>{" "}
+                    {recommendation.rationale ||
+                      "Not provided"}
+                  </p>
+
+                  <p>
+                    <strong>Matched Terminal Log:</strong>{" "}
+                    {recommendation.matchedTerminalLogId ??
+                      "Not available"}
+                  </p>
+
+                  {recommendation.mappedEntities && (
+                    <>
+                      <p>
+                        <strong>Carrier Code:</strong>{" "}
+                        {recommendation.mappedEntities
+                          .carrierCode ?? "Not available"}
+                      </p>
+
+                      {recommendation.mappedEntities
+                        .lineItems.map((mappedItem) => (
+                          <div key={mappedItem.lineItemId}>
+                            <p>
+                              <strong>Line:</strong>{" "}
+                              {mappedItem.lineItemId}
+                            </p>
+
+                            <p>
+                              <strong>E3 Stock ID:</strong>{" "}
+                              {mappedItem.e3StockId ??
+                                "Not available"}
+                            </p>
+
+                            <p>
+                              <strong>Standard Name:</strong>{" "}
+                              {mappedItem.standardName ??
+                                "Not available"}
+                            </p>
+                          </div>
+                        ))}
+                    </>
+                  )}
+
+                  {recommendation.exceptionIndicators.map(
+                    (exception, index) => (
+                      <p
+                        key={`${exception.code}-${index}`}
+                        className="review-warning-text"
+                      >
+                        {exception.severity}:{" "}
+                        {exception.message}
+                      </p>
+                    )
+                  )}
+                </>
+              ) : (
+                <p className="review-recommendation-note">
+                  No Team A recommendation available yet.
+                </p>
+              )}
+            </div>
+
+            {/* REVIEW ACTIONS */}
+
+            <div className="review-actions">
+              <button
+                className="review-btn review-btn-secondary"
+                disabled={!hasChanges || saving}
+                onClick={discardChanges}
+              >
+                Discard Changes
+              </button>
+
+              <button
+                className="review-btn review-btn-primary"
+                disabled={!hasChanges || saving || isMock}
+                onClick={saveChanges}
+                title={isMock ? "Cannot save demo records to backend" : undefined}
+              >
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+              <button
+                type="button"
+                className="review-btn review-btn-secondary"
+                disabled={isMock || saving || validating || hasChanges}
+                onClick={runValidation}
+               >
+              {validating ? "Validating..." : "Validate Record"}
+              </button>
+
+            <button
+            type="button"
+            className="review-btn review-btn-secondary"
+            disabled={
+            isMock ||
+            saving ||
+            validating ||
+            evaluating ||
+            hasChanges
+            }
+            onClick={refreshRecommendation}
+            >
+            {evaluating ? "Refreshing..." : "Refresh Recommendation"}
+            </button>
+
+            </div>
+
+{evaluationError && (
+  <div
+    className="review-message"
+    role="alert"
+    style={{ color: "#a21d1d" }}
+  >
+    Recommendation refresh failed: {evaluationError}
+  </div>
+)}
+
+
+{evaluation && (
+  <div
+    className="review-message"
+    style={{
+      background: "#ffffff",
+      border: "1px solid #dce2ea",
+      borderRadius: "12px",
+      padding: "20px",
+      marginTop: "16px",
+      color: "#1f2937",
+    }}
+  >
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        flexWrap: "wrap",
+        gap: "12px",
+        marginBottom: "20px",
+      }}
+    >
+      <h3 style={{ margin: 0 }}>Team A Recommendation</h3>
+
+      <span
         style={{
-          border:
-            "1px solid #ccc",
-          borderRadius: "8px",
-          padding: "20px",
-          marginTop: "30px",
+          borderRadius: "20px",
+          padding: "6px 12px",
+          fontWeight: 600,
+          background: evaluation.pending ? "#fef3c7" : "#dcfce7",
+          color: evaluation.pending ? "#92400e" : "#166534",
         }}
       >
-        <h2>
-          Team A Recommendation
-        </h2>
+        {evaluation.pending ? "Pending" : "Ready"}
+      </span>
+    </div>
 
-        {record.recommendation ? (
-          <>
-            <p>
-              <strong>
-                Recommendation:
-              </strong>{" "}
-              {
-                record
-                  .recommendation
-                  .recommendation
-              }
-            </p>
-
-            <p>
-              <strong>
-                Team A Decision
-                Confidence:
-              </strong>{" "}
-              {Math.round(
-                record
-                  .recommendation
-                  .confidence * 100
-              )}
-              %
-            </p>
-
-            <p>
-              <strong>
-                Rationale:
-              </strong>{" "}
-              {
-                record
-                  .recommendation
-                  .rationale
-              }
-            </p>
-
-            <p>
-              <strong>
-                Matched Terminal
-                Log:
-              </strong>{" "}
-              {record
-                .recommendation
-                .matchedTerminalLogId ??
-                "Not available"}
-            </p>
-
-            {record
-              .recommendation
-              .mappedEntities && (
-              <>
-                <h3>
-                  Mapped Entities
-                </h3>
-
-                <p>
-                  <strong>
-                    Carrier Code:
-                  </strong>{" "}
-                  {record
-                    .recommendation
-                    .mappedEntities
-                    .carrierCode ??
-                    "Not available"}
-                </p>
-
-                {record.recommendation.mappedEntities.lineItems.map(
-                  (
-                    mappedItem
-                  ) => (
-                    <div
-                      key={
-                        mappedItem.lineItemId
-                      }
-                      style={{
-                        border:
-                          "1px solid #555",
-                        borderRadius:
-                          "6px",
-                        padding:
-                          "12px",
-                        marginBottom:
-                          "10px",
-                      }}
-                    >
-                      <p>
-                        <strong>
-                          Line Item:
-                        </strong>{" "}
-                        {
-                          mappedItem.lineItemId
-                        }
-                      </p>
-
-                      <p>
-                        <strong>
-                          E3 Stock ID:
-                        </strong>{" "}
-                        {mappedItem.e3StockId ??
-                          "Not available"}
-                      </p>
-
-                      <p>
-                        <strong>
-                          Standard
-                          Name:
-                        </strong>{" "}
-                        {mappedItem.standardName ??
-                          "Not available"}
-                      </p>
-                    </div>
-                  )
-                )}
-              </>
-            )}
-
-            {record
-              .recommendation
-              .exceptionIndicators
-              .length > 0 && (
-              <>
-                <h3>
-                  Exception
-                  Indicators
-                </h3>
-
-                {record.recommendation.exceptionIndicators.map(
-                  (
-                    exception,
-                    index
-                  ) => (
-                    <div
-                      key={`${exception.code}-${index}`}
-                      style={{
-                        border:
-                          "1px solid orange",
-                        borderRadius:
-                          "6px",
-                        padding:
-                          "12px",
-                        marginBottom:
-                          "10px",
-                      }}
-                    >
-                      <p>
-                        <strong>
-                          Code:
-                        </strong>{" "}
-                        {
-                          exception.code
-                        }
-                      </p>
-
-                      <p>
-                        <strong>
-                          Severity:
-                        </strong>{" "}
-                        {
-                          exception.severity
-                        }
-                      </p>
-
-                      <p>
-                        <strong>
-                          Message:
-                        </strong>{" "}
-                        {
-                          exception.message
-                        }
-                      </p>
-
-                      {exception.field && (
-                        <p>
-                          <strong>
-                            Field:
-                          </strong>{" "}
-                          {
-                            exception.field
-                          }
-                        </p>
-                      )}
-
-                      {exception.lineItemId !==
-                        undefined && (
-                        <p>
-                          <strong>
-                            Line Item:
-                          </strong>{" "}
-                          {
-                            exception.lineItemId
-                          }
-                        </p>
-                      )}
-                    </div>
-                  )
-                )}
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            <p>
-              Recommendation has
-              not been generated
-              yet.
-            </p>
-
-            <p
+    {evaluation.pending ? (
+      <p>
+        The recommendation is still being processed.
+        Refresh again later to check the updated result.
+      </p>
+    ) : teamRecommendation ? (
+      <>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "16px",
+            flexWrap: "wrap",
+            marginBottom: "20px",
+          }}
+        >
+          <div
+            style={{
+              padding: "18px",
+              borderRadius: "12px",
+              background: "#f0fdf4",
+              textAlign: "center",
+              minWidth: "125px",
+            }}
+          >
+            <div
               style={{
-                color: "#888",
+                color: "#166534",
+                fontWeight: 700,
+                fontSize: "28px",
               }}
             >
-              Team A recommendation
-              will appear here after
-              evaluation.
-            </p>
-          </>
-        )}
-      </div>
+              {evaluationConfidence}
+            </div>
+            <div style={{ fontSize: "12px", color: "#64748b" }}>
+              Confidence
+            </div>
+          </div>
 
-      {/* ACTIONS */}
+          <div style={{ flex: 1 }}>
+            <h3 style={{ margin: "0 0 8px" }}>
+              {recommendationLabel(
+                teamRecommendation.recommendation
+              )}
+            </h3>
+
+            <p style={{ color: "#64748b", margin: 0 }}>
+              {teamRecommendation.rationale ||
+                "No rationale provided."}
+            </p>
+          </div>
+        </div>
+
+        <h4>Matching Details</h4>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(2, minmax(0, 1fr))",
+            gap: "12px",
+            marginBottom: "20px",
+          }}
+        >
+          {[
+            {
+              label: "Terminal Log",
+              value:
+                teamRecommendation.matchedTerminalLogId,
+            },
+            {
+              label: "Carrier Code",
+              value:
+                teamRecommendation.mappedEntities?.carrierCode,
+            },
+          ].map((item) => (
+            <div
+              key={item.label}
+              style={{
+                background: "#f8fafc",
+                borderRadius: "10px",
+                padding: "14px",
+              }}
+            >
+              <div
+                style={{
+                  color: "#64748b",
+                  fontSize: "13px",
+                  marginBottom: "5px",
+                }}
+              >
+                {item.label}
+              </div>
+              <strong>{item.value ?? "Not available"}</strong>
+            </div>
+          ))}
+        </div>
+
+        <h4>Product Mapping</h4>
+
+        {(teamRecommendation.mappedEntities?.lineItems ?? [])
+          .length > 0 ? (
+          teamRecommendation.mappedEntities?.lineItems?.map(
+            (item) => (
+              <div
+                key={item.lineItemId}
+                style={{
+                  background: "#f8fafc",
+                  borderRadius: "10px",
+                  padding: "14px",
+                  marginBottom: "10px",
+                }}
+              >
+                <strong>Line Item {item.lineItemId}</strong>
+                <p style={{ margin: "8px 0 4px" }}>
+                  E3 Stock ID:{" "}
+                  <strong>
+                    {item.e3StockId ?? "Not available"}
+                  </strong>
+                </p>
+                <p style={{ margin: 0 }}>
+                  Standard Product:{" "}
+                  <strong>
+                    {item.standardName ?? "Not available"}
+                  </strong>
+                </p>
+              </div>
+            )
+          )
+        ) : (
+          <p>No product mappings available.</p>
+        )}
+
+        {teamRecommendation.modelVersion && (
+          <p
+            style={{
+              color: "#64748b",
+              fontSize: "12px",
+              marginTop: "15px",
+            }}
+          >
+            Model version: {teamRecommendation.modelVersion}
+          </p>
+        )}
+      </>
+    ) : (
+      <p>No recommendation available in the evaluation response.</p>
+    )}
+
+    <div
+      style={{
+        borderTop: "1px solid #e5e7eb",
+        paddingTop: "16px",
+        marginTop: "16px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: "12px",
+      }}
+    >
+      <strong>Workflow Status</strong>
+
+      <span
+        style={{
+          padding: "7px 12px",
+          borderRadius: "8px",
+          background: "#f1f5f9",
+          color: "#334155",
+          fontWeight: 600,
+        }}
+      >
+        {recommendationLabel(evaluation.status)}
+      </span>
+    </div>
+
+    <p
+      style={{
+        fontSize: "12px",
+        color: "#64748b",
+        marginTop: "12px",
+        marginBottom: 0,
+      }}
+    >
+      Recommendation only — final approval requires human review.
+    </p>
+  </div>
+)}
+
+
+
+
+            {validationError && (
+            <div className="review-message" role="alert">
+            Validation failed: {validationError}
+            </div>
+            )}
+
+
+{validation && (
+  <div
+    className="review-message"
+    style={{
+      background: "#ffffff",
+      border: "1px solid #dce2ea",
+      borderRadius: "12px",
+      padding: "20px",
+      marginTop: "16px",
+      color: "#1f2937",
+    }}
+  >
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: "12px",
+        marginBottom: "20px",
+      }}
+    >
+      <h3 style={{ margin: 0 }}>Validation Results</h3>
+
+      <span
+        style={{
+          padding: "6px 12px",
+          borderRadius: "20px",
+          background: validation.valid ? "#dcfce7" : "#fee2e2",
+          color: validation.valid ? "#166534" : "#991b1b",
+          fontWeight: 600,
+        }}
+      >
+        {validation.valid ? "✓ Valid" : "✕ Invalid"}
+      </span>
+    </div>
+
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+        gap: "12px",
+        marginBottom: "20px",
+      }}
+    >
+      <div
+        style={{
+          background: "#f8fafc",
+          borderRadius: "10px",
+          padding: "16px",
+        }}
+      >
+        <div style={{ color: "#64748b", fontSize: "13px" }}>
+          Blocking Issues
+        </div>
+        <div style={{ fontSize: "28px", fontWeight: 700 }}>
+          {blockingIssues.length}
+        </div>
+      </div>
 
       <div
         style={{
-          display: "flex",
-          gap: "12px",
-          marginTop: "30px",
+          background: "#f8fafc",
+          borderRadius: "10px",
+          padding: "16px",
         }}
       >
-        <button>
-          Approve
-        </button>
-
-        <button>
-          Reject
-        </button>
-
-        <button>
-          Mark Exception
-        </button>
+        <div style={{ color: "#64748b", fontSize: "13px" }}>
+          Review Warnings
+        </div>
+        <div style={{ fontSize: "28px", fontWeight: 700 }}>
+          {reviewFlags.length}
+        </div>
       </div>
     </div>
+
+    {blockingIssues.length === 0 ? (
+      <p style={{ color: "#166534", marginBottom: "16px" }}>
+        ✓ No blocking issues found.
+      </p>
+    ) : (
+      <div style={{ marginBottom: "20px" }}>
+        <h4>Blocking Issues</h4>
+        {blockingIssues.map((issue, index) => (
+          <div
+            key={`${issue.code}-${index}`}
+            style={{
+              background: "#fff1f2",
+              borderLeft: "4px solid #dc2626",
+              borderRadius: "6px",
+              padding: "12px",
+              marginBottom: "10px",
+            }}
+          >
+            <strong>
+              {issue.field
+                ? formatValidationLabel(issue.field)
+                : formatValidationLabel(issue.code)}
+            </strong>
+            <p style={{ margin: "6px 0 0" }}>
+              {issue.message}
+            </p>
+          </div>
+        ))}
+      </div>
+    )}
+
+    {reviewFlags.length > 0 && (
+      <div style={{ marginBottom: "20px" }}>
+        <h4 style={{ marginBottom: "12px" }}>
+          ⚠ Review Required
+        </h4>
+
+        {reviewFlags.map((issue, index) => (
+          <div
+            key={`${issue.code}-${index}`}
+            style={{
+              background: "#fffbeb",
+              borderLeft: "4px solid #f59e0b",
+              borderRadius: "6px",
+              padding: "12px",
+              marginBottom: "10px",
+            }}
+          >
+            <strong>
+              {issue.field
+                ? formatValidationLabel(issue.field)
+                : formatValidationLabel(issue.code)}
+            </strong>
+
+            {issue.lineItemId != null && (
+              <span style={{ color: "#92400e" }}>
+                {" "}— Line Item {issue.lineItemId}
+              </span>
+            )}
+
+            <p style={{ margin: "6px 0 0", color: "#78350f" }}>
+              {issue.message}
+            </p>
+
+            <small style={{ color: "#92400e" }}>
+              {formatValidationLabel(issue.code)}
+            </small>
+          </div>
+        ))}
+      </div>
+    )}
+
+    <div
+      style={{
+        borderTop: "1px solid #e5e7eb",
+        paddingTop: "16px",
+        display: "flex",
+        justifyContent: "space-between",
+        gap: "12px",
+        alignItems: "center",
+      }}
+    >
+      <strong>Next Status</strong>
+
+      <span
+        style={{
+          background: "#fef3c7",
+          color: "#92400e",
+          padding: "7px 12px",
+          borderRadius: "8px",
+          fontWeight: 600,
+        }}
+      >
+        {formatValidationLabel(validation.nextStatus)}
+      </span>
+    </div>
+  </div>
+)}
+
+            
+
+            {hasChanges && !isMock && (
+  <p className="review-recommendation-note">
+    Save or discard your changes before validating.
+  </p>
+            )}
+
+            {saveError && (
+              <div className="review-message" role="alert" style={{ color: "#a21d1d" }}>
+                {saveError}
+              </div>
+            )}
+            {saveMessage && (
+              <div className="review-message review-message-info" role="status">
+                {saveMessage}
+              </div>
+            )}
+            <div className="review-message review-message-info">
+              {isMock
+                ? "Demo record: saving is disabled."
+                : hasChanges
+                ? "You have unsaved changes. Save Changes sends PATCH requests to Django."
+                : "No unsaved changes."}
+            </div>
+
+            <p className="review-recommendation-note"
+              style={{ marginTop: "12px" }}
+            >
+              Approval, follow-up and row exclusion
+              actions will be connected in the next
+              workflow milestone.
+            </p>
+          </div>
+        </section>
+      </div>
+    </main>
   );
-}
+} 

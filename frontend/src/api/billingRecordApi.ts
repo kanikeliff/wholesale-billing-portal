@@ -1,3 +1,4 @@
+
 import { apiRequest } from "./apiClient";
 
 export type FieldQuality =
@@ -8,10 +9,10 @@ export type FieldQuality =
   | "INVALID";
 
 export interface ExtractedField<T = string | number | null> {
-  rawValue: string | null;
   normalizedValue: T;
-  confidence: number | null;
-  quality: FieldQuality;
+  rawValue?: string | null;
+  confidence?: number | null;
+  quality?: FieldQuality;
 }
 
 export interface BillingDocument {
@@ -21,15 +22,21 @@ export interface BillingDocument {
 }
 
 export interface LineItem {
-  lineItemId: number;
+  lineItemId: string;
+  lineNumber?: number;
+
   product: ExtractedField<string | null>;
   grossGallons: ExtractedField<number | null>;
   netGallons: ExtractedField<number | null>;
   e3StockId: ExtractedField<string | null>;
+  standardName?: ExtractedField<string | null>;
 }
 
 export interface Recommendation {
-  recommendation: "APPROVE_RECOMMENDED" | "REVIEW_REQUIRED";
+  recommendation:
+    | "APPROVE_RECOMMENDED"
+    | "REVIEW_REQUIRED"
+    | "REJECT_RECOMMENDED";
   confidence: number;
   rationale: string;
   matchedTerminalLogId: string | null;
@@ -37,7 +44,7 @@ export interface Recommendation {
   mappedEntities: {
     carrierCode: string | null;
     lineItems: {
-      lineItemId: number;
+      lineItemId: string;
       e3StockId: string | null;
       standardName: string | null;
     }[];
@@ -48,7 +55,7 @@ export interface Recommendation {
     severity: string;
     message: string;
     field?: string;
-    lineItemId?: number;
+    lineItemId?: string;
   }[];
 }
 
@@ -56,7 +63,9 @@ export interface BillingRecord {
   recordId: string;
   status: string;
 
-  document: BillingDocument;
+  // Current PostgreSQL response does not include these.
+  document?: BillingDocument | null;
+  recommendation?: Recommendation | null;
 
   fields: {
     bolNumber: ExtractedField<string | null>;
@@ -70,13 +79,28 @@ export interface BillingRecord {
 
   lineItems: LineItem[];
 
-  recommendation: Recommendation | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
+
+export interface BillingRecordListResponse {
+  count: number;
+  records: BillingRecord[];
+}
+
+export type BillingRecordSummary = BillingRecord;
 
 export function getBillingRecord(
   recordId: string
 ): Promise<BillingRecord> {
   return apiRequest<BillingRecord>(
-    `/billing-records/${recordId}/`
+    `/billing-records/${encodeURIComponent(recordId)}/`
+  );
+}
+
+export function getBillingRecords():
+  Promise<BillingRecordListResponse> {
+  return apiRequest<BillingRecordListResponse>(
+    "/billing-records/"
   );
 }
