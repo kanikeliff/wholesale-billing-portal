@@ -14,7 +14,9 @@ from core.exceptions.integration_exception import IntegrationException
 from infrastructure.mock.mock_billing_record_provider import (
     MockBillingRecordProvider,
 )
-from infrastructure.team_a.mock_team_a_adapter import MockTeamAAdapter
+from infrastructure.team_a.provider_factory import (
+    build_recommendation_provider,
+)
 from infrastructure.database.django_billing_record_repository import (
     DjangoBillingRecordRepository,
 )
@@ -48,7 +50,7 @@ billing_validation_service = BillingValidationService(
 )
 
 recommendation_service = RecommendationService(
-    recommendation_provider=MockTeamAAdapter(),
+    recommendation_provider=build_recommendation_provider(),
     billing_record_provider=billing_record_provider,
     billing_record_repository=billing_record_repository,
     workflow_service=WorkflowService(),
