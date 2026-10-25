@@ -1,0 +1,606 @@
+
+/* ==========================================
+   MIRABITO BOL REVIEW WORKSPACE
+   Light Theme - October 23 Milestone
+========================================== */
+
+/* Main workspace */
+
+.review-page {
+    min-height: 100vh;
+    background: #f4f6f9;
+    color: #202938;
+    padding: 24px;
+  }
+  
+  /* Top header */
+  
+  .review-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  
+    background: #ffffff;
+    border: 1px solid #e2e6ed;
+    border-radius: 10px;
+    padding: 18px 24px;
+    margin-bottom: 20px;
+  }
+  
+  .review-header h1 {
+    font-size: 25px;
+    font-weight: 700;
+    margin: 0;
+    color: #202938;
+  }
+  
+  .review-subtitle {
+    font-size: 14px;
+    color: #667085;
+    margin-top: 5px;
+  }
+  
+  .review-back-link {
+    color: #b21f36;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  
+  .review-back-link:hover {
+    text-decoration: underline;
+  }
+  
+  /* Record information */
+  
+  .review-record-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  
+  .review-record-id {
+    font-size: 13px;
+    color: #667085;
+  }
+  
+  .review-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 20px;
+  
+    background: #fff1f2;
+    color: #a51d33;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  
+  /* Three-column workspace */
+  
+  .review-workspace {
+    display: grid;
+    grid-template-columns:
+      minmax(220px, 0.8fr)
+      minmax(360px, 1.5fr)
+      minmax(340px, 1.2fr);
+  
+    gap: 18px;
+    align-items: start;
+  }
+  
+  /* Shared panel styles */
+  
+  .review-panel {
+    background: #ffffff;
+    border: 1px solid #e2e6ed;
+    border-radius: 10px;
+    overflow: hidden;
+    min-width: 0;
+  }
+  
+  .review-panel-header {
+    padding: 18px 20px;
+    border-bottom: 1px solid #e2e6ed;
+  }
+  
+  .review-panel-header h2 {
+    color: #202938;
+    font-size: 17px;
+    font-weight: 700;
+    margin: 0;
+  }
+  
+  .review-panel-subtitle {
+    color: #667085;
+    font-size: 12px;
+    margin-top: 5px;
+  }
+  
+  .review-panel-body {
+    padding: 18px;
+  }
+  
+  /* Document queue */
+  
+  .review-queue {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .review-queue-item {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    text-align: left;
+  
+    background: #ffffff;
+    border: 1px solid #e2e6ed;
+    border-radius: 8px;
+    color: #202938;
+  
+    text-decoration: none;
+    transition: 0.2s ease;
+  }
+  
+  .review-queue-item:hover {
+    background: #faf5f6;
+    border-color: #d7a0aa;
+    text-decoration: none;
+  }
+  
+  .review-queue-item.active {
+    background: #fff1f2;
+    border-color: #b21f36;
+  }
+  
+  .review-queue-title {
+    font-size: 14px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  
+  .review-queue-details {
+    font-size: 12px;
+    color: #667085;
+    margin-top: 6px;
+  }
+  
+  /* Original PDF viewer */
+  
+  .review-document-container {
+    background: #f8f9fb;
+    padding: 12px;
+  }
+  
+  .review-pdf {
+    display: block;
+    width: 100%;
+    height: 720px;
+  
+    background: #ffffff;
+    border: 1px solid #e2e6ed;
+    border-radius: 6px;
+  }
+  
+  .review-document-actions {
+    padding: 14px;
+    border-top: 1px solid #e2e6ed;
+    text-align: center;
+  }
+  
+  .review-document-link {
+    font-size: 13px;
+    font-weight: 600;
+    color: #b21f36;
+  }
+  
+  /* OCR review */
+  
+  .review-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  
+  .review-field {
+    background: #ffffff;
+    border: 1px solid #e2e6ed;
+    border-radius: 8px;
+    padding: 14px;
+  }
+  
+  .review-field.warning {
+    border-color: #e8b866;
+    background: #fffaf0;
+  }
+  
+  .review-field-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: #344054;
+    margin-bottom: 8px;
+  }
+  
+  .review-field-input {
+    display: block;
+    width: 100%;
+    min-height: 40px;
+  
+    padding: 9px 11px;
+    background: #ffffff;
+  
+    color: #202938;
+    border: 1px solid #cfd5df;
+    border-radius: 6px;
+  
+    font-size: 14px;
+  }
+  
+  .review-field-input:focus {
+    outline: none;
+    border-color: #b21f36;
+    box-shadow: 0 0 0 3px rgba(178, 31, 54, 0.1);
+  }
+  
+  .review-field-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 9px;
+  
+    font-size: 11px;
+    color: #667085;
+  }
+  
+  .review-field-raw {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #667085;
+    overflow-wrap: anywhere;
+  }
+  
+  .review-confidence {
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 5px;
+    padding: 4px 7px;
+  
+    background: #eaf7ef;
+    color: #18794e;
+  }
+  
+  .review-confidence.low {
+    background: #fff0d8;
+    color: #9b5700;
+  }
+  
+  .review-confidence.unavailable {
+    background: #f0f2f5;
+    color: #667085;
+  }
+  
+  .review-warning-text {
+    font-size: 12px;
+    color: #9b5700;
+    font-weight: 600;
+    margin-top: 8px;
+  }
+  
+  /* Product line items */
+  
+  .review-line-item {
+    margin-top: 16px;
+    padding: 16px;
+    border: 1px solid #e2e6ed;
+    border-radius: 8px;
+    background: #fafbfc;
+  }
+  
+  .review-line-item h3 {
+    margin: 0 0 12px;
+    font-size: 15px;
+    color: #202938;
+  }
+  
+  /* Recommendation */
+  
+  .review-recommendation {
+    margin-top: 20px;
+    padding: 16px;
+    background: #f8f9fb;
+    border: 1px solid #e2e6ed;
+    border-radius: 8px;
+  }
+  
+  .review-recommendation h3 {
+    font-size: 15px;
+    color: #202938;
+    margin: 0 0 12px;
+  }
+  
+  .review-recommendation p {
+    font-size: 13px;
+    margin: 7px 0;
+  }
+  
+  .review-recommendation-note {
+    color: #667085;
+    font-size: 13px;
+  }
+  
+  /* Action buttons */
+  
+  .review-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 20px;
+  }
+  
+  .review-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  
+    min-height: 42px;
+    padding: 10px 16px;
+    border-radius: 7px;
+  
+    font-size: 13px;
+    font-weight: 700;
+  
+    transition: 0.2s ease;
+  }
+  
+  .review-btn-primary {
+    background: #b21f36;
+    border: 1px solid #b21f36;
+    color: #ffffff;
+  }
+  
+  .review-btn-primary:hover:not(:disabled) {
+    background: #95192d;
+  }
+  
+  .review-btn-secondary {
+    background: #ffffff;
+    border: 1px solid #cfd5df;
+    color: #344054;
+  }
+  
+  .review-btn-secondary:hover:not(:disabled) {
+    background: #f5f6f8;
+  }
+  
+  .review-btn-warning {
+    background: #fff7e7;
+    border: 1px solid #edca87;
+    color: #925300;
+  }
+  
+  .review-btn-warning:hover:not(:disabled) {
+    background: #ffedc5;
+  }
+  
+  /* Feedback messages */
+  
+  .review-message {
+    margin-top: 16px;
+    padding: 12px 14px;
+    border-radius: 7px;
+    font-size: 13px;
+  }
+  
+  .review-message-info {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1d4ed8;
+  }
+  
+  .review-message-error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+  }
+  
+  .review-message-success {
+    background: #ecfdf3;
+    border: 1px solid #a6f4c5;
+    color: #067647;
+  }
+  
+  /* Responsive layouts */
+  
+  @media (max-width: 1200px) {
+    .review-workspace {
+      grid-template-columns: 240px minmax(0, 1fr);
+    }
+  
+    .review-workspace > :last-child {
+      grid-column: 1 / -1;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .review-page {
+      padding: 14px;
+    }
+  
+    .review-header {
+      padding: 16px;
+    }
+  
+    .review-workspace {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  
+    .review-workspace > :last-child {
+      grid-column: auto;
+    }
+  
+    .review-pdf {
+      height: 500px;
+    }
+  
+    .review-panel-body {
+      padding: 14px;
+    }
+  
+    .review-actions {
+      flex-direction: column;
+    }
+  
+    .review-btn {
+      width: 100%;
+    }
+  }
+
+
+/* Temporary layout fix */
+
+body,
+html,
+#root {
+  background-color: #f4f6f9 !important;
+  color: #202938 !important;
+}
+
+.review-page {
+  width: 100% !important;
+  min-height: 100vh;
+  padding: 24px !important;
+  background-color: #f4f6f9 !important;
+  color: #202938 !important;
+  text-align: left !important;
+  font-size: 14px !important;
+}
+
+.review-workspace {
+  display: grid !important;
+  grid-template-columns:
+    minmax(200px, 0.8fr)
+    minmax(350px, 1.5fr)
+    minmax(320px, 1.2fr) !important;
+  gap: 18px !important;
+  align-items: start !important;
+}
+
+.review-panel {
+  background: #ffffff !important;
+  border: 1px solid #e2e6ed !important;
+  border-radius: 10px !important;
+  min-width: 0;
+}
+
+.review-page h1 {
+  font-size: 28px !important;
+  color: #202938 !important;
+}
+
+.review-page h2 {
+  font-size: 18px !important;
+  color: #202938 !important;
+}
+
+.review-page h3 {
+  font-size: 15px !important;
+  color: #202938 !important;
+}
+
+.review-field-input {
+  background: #ffffff !important;
+  color: #202938 !important;
+  border: 1px solid #cfd5df !important;
+}
+
+@media (max-width: 1100px) {
+  .review-workspace {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+
+/* ========================================
+   DOCUMENT QUEUE UX IMPROVEMENTS
+======================================== */
+
+/* Prevent the queue from stretching the page */
+
+.review-workspace > .review-panel:first-child {
+    max-height: 760px;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  /* Keep the queue heading visible */
+  
+  .review-workspace > .review-panel:first-child
+  .review-panel-header {
+    flex-shrink: 0;
+  }
+  
+  /* Scroll only inside the queue */
+  
+  .review-workspace > .review-panel:first-child
+  .review-panel-body {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f8fafc;
+  }
+  
+  /* More compact document cards */
+  
+  .review-queue {
+    gap: 8px;
+  }
+  
+  .review-queue-item {
+    padding: 12px 14px;
+  }
+  
+  .review-queue-title {
+    font-size: 13px;
+  }
+  
+  .review-queue-details {
+    font-size: 11px;
+    margin-top: 4px;
+  }
+  
+  /* Clearly indicate selected record */
+  
+  .review-queue-item.active {
+    background: #fff1f2;
+    border-color: #b21f36;
+    border-left: 4px solid #b21f36;
+  }
+  
+  /* Keep the PDF panel at a manageable size */
+  
+  .review-pdf {
+    height: 680px;
+  }
+  
+  /* Smaller screen adjustments */
+  
+  @media (max-width: 768px) {
+    .review-workspace > .review-panel:first-child {
+      max-height: 360px;
+    }
+  
+    .review-pdf {
+      height: 480px;
+    }
+  }
+  
+  
