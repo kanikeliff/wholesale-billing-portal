@@ -1,3 +1,8 @@
+from application.services.bol_upload_service import BOLUploadService
+from application.services.ocr_processing_service import OCRProcessingService
+from infrastructure.ocr.bol_lab_adapter import BolLabAdapter
+from infrastructure.ocr.mock_ocr_client import MockOCRClient
+
 from application.services.correction_service import CorrectionService
 from application.services.human_decision_service import HumanDecisionService
 from application.services.recommendation_service import RecommendationService
@@ -24,6 +29,19 @@ def wire_database_persistence():
     # leave the existing mock runtime composition untouched.
     if billing_record_repository is None:
         return
+
+
+    # Development upload pipeline:
+    # Browser -> Django -> Mock OCR -> normalization -> PostgreSQL
+    import presentation.api.upload_views as upload_views
+
+    upload_views.BillingRecordUploadView.upload_service = BOLUploadService(
+        ocr_client=MockOCRClient(),
+        ocr_processing_service=OCRProcessingService(
+            adapter=BolLabAdapter(),
+            billing_record_repository=billing_record_repository,
+        ),
+    )
 
     recommendation_provider = (
         billing_views.recommendation_service.recommendation_provider

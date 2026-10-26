@@ -7,6 +7,8 @@ import {
   type BillingRecord,
 } from "../api/billingRecordApi";
 
+import { uploadBillingRecord } from "../api/uploadApi";
+
 type UploadStatus =
   | "idle"
   | "uploading"
@@ -14,11 +16,7 @@ type UploadStatus =
   | "success"
   | "error";
 
-const SAMPLE_RECORD_ID = "rec_001";
 const SAMPLE_PDF_URL = "/sample-bol.pdf";
-
-const wait = (ms: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 const colors = {
   brand: "#b21f36",
@@ -89,9 +87,6 @@ export default function UploadPage() {
     setSelectedFile(file);
   };
 
-  // Demo workflow:
-  // The selected file is NOT sent to the backend.
-  // We retrieve the existing sample OCR record.
   const handleUpload = async () => {
     if (!selectedFile || isProcessing) return;
 
@@ -100,28 +95,30 @@ export default function UploadPage() {
       setBackendRecord(null);
 
       setUploadStatus("uploading");
-      await wait(600);
+
+      const uploadResult =
+        await uploadBillingRecord(selectedFile);
 
       setUploadStatus("processing");
-      await wait(800);
 
       const record = await getBillingRecord(
-        SAMPLE_RECORD_ID
+        uploadResult.recordId
       );
 
       setBackendRecord(record);
       setUploadStatus("success");
     } catch (error) {
       console.error(
-        "Unable to retrieve sample billing record:",
+        "Unable to upload billing document:",
         error
       );
 
       setUploadStatus("error");
+
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Unable to retrieve the sample OCR record."
+          : "Unable to upload the billing document."
       );
     }
   };
