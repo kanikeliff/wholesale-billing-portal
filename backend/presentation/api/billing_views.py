@@ -1,5 +1,7 @@
 import os
 from rest_framework import status
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -68,6 +70,22 @@ human_decision_service = HumanDecisionService(
     billing_record_repository=billing_record_repository,
     workflow_service=WorkflowService(),
 )
+
+
+
+
+def _authenticated_actor(request):
+    user = request.user
+
+    if not user or not user.is_authenticated:
+        raise ValueError("Authenticated user is required.")
+
+    username = user.get_username()
+
+    if username:
+        return username
+
+    return str(user.pk)
 
 
 # -------------------------------------------------------------------
@@ -203,8 +221,8 @@ class BillingRecordRecommendationView(APIView):
 # -------------------------------------------------------------------
 
 class BillingRecordFieldCorrectionView(APIView):
-    authentication_classes = []
-    permission_classes = []
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def patch(self, request, record_id, field_name):
         try:
@@ -223,7 +241,7 @@ class BillingRecordFieldCorrectionView(APIView):
                 record_id,
                 field_name,
                 request.data.get("value"),
-                reviewed_by=request.data.get("reviewedBy"),
+                reviewed_by=_authenticated_actor(request),
             )
 
             return Response(
@@ -266,8 +284,8 @@ class BillingRecordFieldCorrectionView(APIView):
 # -------------------------------------------------------------------
 
 class BillingRecordLineItemCorrectionView(APIView):
-    authentication_classes = []
-    permission_classes = []
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def patch(
         self,
@@ -293,7 +311,7 @@ class BillingRecordLineItemCorrectionView(APIView):
                 line_item_id,
                 field_name,
                 request.data.get("value"),
-                reviewed_by=request.data.get("reviewedBy"),
+                reviewed_by=_authenticated_actor(request),
             )
 
             return Response(
@@ -345,8 +363,8 @@ class BillingRecordLineItemCorrectionView(APIView):
 # -------------------------------------------------------------------
 
 class BillingRecordDecisionView(APIView):
-    authentication_classes = []
-    permission_classes = []
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, record_id):
         try:
@@ -366,7 +384,7 @@ class BillingRecordDecisionView(APIView):
             result = human_decision_service.submit_decision(
                 record_id,
                 decision,
-                decided_by=request.data.get("decidedBy"),
+                decided_by=_authenticated_actor(request),
                 reason=request.data.get("reason"),
             )
 
