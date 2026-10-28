@@ -1,3 +1,4 @@
+from application.services.document_file_service import DocumentFileService
 from application.services.bol_upload_service import BOLUploadService
 from application.services.ocr_processing_service import OCRProcessingService
 from infrastructure.ocr.bol_lab_adapter import BolLabAdapter
@@ -41,6 +42,7 @@ def wire_database_persistence():
             adapter=BolLabAdapter(),
             billing_record_repository=billing_record_repository,
         ),
+        document_file_service=DocumentFileService(),
     )
 
     recommendation_provider = (

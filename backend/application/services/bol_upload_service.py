@@ -42,12 +42,14 @@ class BOLUploadService:
         *,
         ocr_client,
         ocr_processing_service,
+        document_file_service=None,
         max_file_size_bytes=20 * 1024 * 1024,
         poll_interval_seconds=1,
         poll_timeout_seconds=30,
     ):
         self.ocr_client = ocr_client
         self.ocr_processing_service = ocr_processing_service
+        self.document_file_service = document_file_service
         self.max_file_size_bytes = max_file_size_bytes
         self.poll_interval_seconds = poll_interval_seconds
         self.poll_timeout_seconds = poll_timeout_seconds
@@ -89,10 +91,34 @@ class BOLUploadService:
             .persist_extraction(extraction)
         )
 
+        document = None
+
+        if self.document_file_service is not None:
+            document = self.document_file_service.store_uploaded_document(
+                record_id=persisted["recordId"],
+                document_id=document_id,
+                original_filename=uploaded_file.name,
+                file_bytes=file_bytes,
+                mime_type=getattr(
+                    uploaded_file,
+                    "content_type",
+                    None,
+                ),
+            )
+
         return {
             "recordId": persisted["recordId"],
             "status": persisted["status"],
-            "documentId": document_id,
+            "documentId": (
+                document["documentId"]
+                if document
+                else document_id
+            ),
+            "documentUrl": (
+                document["documentUrl"]
+                if document
+                else None
+            ),
             "filename": uploaded_file.name,
         }
 
