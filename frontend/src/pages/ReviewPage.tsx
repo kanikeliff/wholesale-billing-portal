@@ -4,6 +4,10 @@ import { validateBillingRecord } from "../api/validationApi";
 import { evaluateBillingRecord } from "../api/recommendationApi";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import {
+  submitBillingDecision,
+  type HumanDecision,
+} from "../api/decisionApi";
 
 import {
   getBillingRecord,
@@ -11,7 +15,7 @@ import {
   type ExtractedField,
 } from "../api/billingRecordApi";
 
-import { mockBols } from "../data/mockBol";
+
 import { updateBillingField, updateBillingLineItem } from "../api/correctionApi";
 
 type FieldKey = keyof BillingRecord["fields"];
@@ -92,63 +96,7 @@ function confidenceText(field: ExtractedField<unknown>) {
   return `${Math.round(field.confidence * 100)}%`;
 }
 
-// Keep the existing mock data support.
-// Mock records are explicitly identified in the UI.
-function createMockBillingRecord(
-  mockRecord: (typeof mockBols)[number]
-): BillingRecord {
-  const makeField = <T,>(
-    value: T,
-    confidence: number,
-    quality: "OK" | "LOW_CONFIDENCE" = "OK"
-  ): ExtractedField<T> => ({
-    rawValue: value == null ? null : String(value),
-    normalizedValue: value,
-    confidence,
-    quality,
-  });
 
-  return {
-    recordId: mockRecord.recordId,
-    status: mockRecord.status,
-
-    document: {
-      id: `doc-${mockRecord.recordId}`,
-      fileName: `BOL-${mockRecord.bolNumber}.pdf`,
-      fileUrl: "",
-    },
-
-    fields: {
-      bolNumber: makeField(mockRecord.bolNumber, 0.96),
-      contractLifting: makeField(
-        "Pending Mapping",
-        0.78,
-        "LOW_CONFIDENCE"
-      ),
-      origin: makeField("Terminal Location", 0.91),
-      supplier: makeField(mockRecord.supplier, 0.95),
-      carrier: makeField(mockRecord.carrier, 0.89),
-      transactionDate: makeField("Oct 9, 2026", 0.93),
-      destination: makeField("Mirabito Facility", 0.88),
-    },
-
-    lineItems: [
-      {
-        lineItemId: "1",
-        product: makeField("Regular Gasoline", 0.87),
-        grossGallons: makeField(8550, 0.92),
-        netGallons: makeField(8500, 0.94),
-        e3StockId: makeField(
-          "Pending",
-          0.7,
-          "LOW_CONFIDENCE"
-        ),
-      },
-    ],
-
-    recommendation: null,
-  };
-}
 
 function createDraft(record: BillingRecord): DraftValues {
   const draft: DraftValues = {};
@@ -183,13 +131,16 @@ export default function ReviewPage() {
   const [draft, setDraft] = useState<DraftValues>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [isMock, setIsMock] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [saveError, setSaveError] = useState("");
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] =
   useState<unknown>(null);
+  const [decisionReason, setDecisionReason] = useState("");
+  const [submittingDecision, setSubmittingDecision] = useState(false);
+  const [decisionError, setDecisionError] = useState("");
+  const [decisionMessage, setDecisionMessage] = useState("");
 
 const [validationError, setValidationError] = useState("");
 
@@ -214,7 +165,6 @@ const [evaluationError, setEvaluationError] = useState("");
     setError("");
     setRecord(null);
     setDraft({});
-    setIsMock(false);
     setSaveMessage("");
     setSaveError("");
 
@@ -227,29 +177,23 @@ const [evaluationError, setEvaluationError] = useState("");
 
         setRecord(backendRecord);
         setDraft(createDraft(backendRecord));
+       
       } catch (backendError) {
         if (!active) return;
-
+      
         console.error(
           "Backend billing record request failed:",
           backendError
         );
-
-        const mockRecord = mockBols.find(
-          (bol) => bol.recordId === id
+      
+        setRecord(null);
+        setDraft({});
+          
+        setError(
+          backendError instanceof Error
+            ? `Could not load this BOL from the backend: ${backendError.message}`
+            : "Could not load this BOL from the backend."
         );
-
-        if (mockRecord) {
-          const fallback = createMockBillingRecord(mockRecord);
-
-          setRecord(fallback);
-          setDraft(createDraft(fallback));
-          setIsMock(true);
-        } else {
-          setError(
-            "Could not load this BOL from the backend."
-          );
-        }
       } finally {
         if (active) setLoading(false);
       }
@@ -316,7 +260,7 @@ const formatValidationLabel = (value: string) =>
     }
   };
   const runValidation = async () => {
-    if (!record || isMock || saving || validating || hasChanges) {
+    if (!record || saving || validating || hasChanges) {
       return;
     }
   
@@ -339,7 +283,6 @@ const formatValidationLabel = (value: string) =>
 const refreshRecommendation = async () => {
   if (
     !record ||
-    isMock ||
     saving ||
     evaluating ||
     validating ||
@@ -372,7 +315,7 @@ const refreshRecommendation = async () => {
 
   // Only submit changed fields. Do not silently save mock/fallback data.
   const saveChanges = async () => {
-    if (!record || isMock || saving || !hasChanges) return;
+    if (!record || saving || !hasChanges) return;
     const original = createDraft(record);
     const modifiedKeys = Object.keys(draft).filter(
       (key) => draft[key] !== original[key]
@@ -441,37 +384,48 @@ const refreshRecommendation = async () => {
       }
     }
 
-    // Refresh from backend even after a partial success. Keep unsaved edits in the UI.
+    // Verify backend values before restoring unsaved edits.
     try {
       const refreshed = await getBillingRecord(record.recordId);
-      const refreshedDraft = createDraft(refreshed);
+      const actualValues = createDraft(refreshed);
+
       const unverifiedEdits = modifiedKeys.filter(
         (key) =>
           !completed.has(key) ||
-          refreshedDraft[key] !== draft[key]
+          actualValues[key] !== draft[key]
       );
-      
-      // Keep edits that the backend has not confirmed.
-      for (const key of unverifiedEdits) {
-        refreshedDraft[key] = draft[key];
-      }
-      
-      setRecord(refreshed);
-      setDraft(refreshedDraft);
 
-      if (!failure && completed.size > 0) {
-        const unpersisted = [...completed].filter(
-          (key) => refreshedDraft[key] !== draft[key]
+      const unpersisted = [...completed].filter(
+        (key) => actualValues[key] !== draft[key]
+      );
+
+      const nextDraft = { ...actualValues };
+
+      for (const key of unverifiedEdits) {
+        nextDraft[key] = draft[key];
+      }
+
+      setRecord(refreshed);
+      setDraft(nextDraft);
+
+      if (unpersisted.length > 0) {
+        setSaveError(
+          `The API accepted ${completed.size} correction(s), but ${unpersisted.length} value(s) were not confirmed by the refreshed record.`
         );
-        if (unpersisted.length) {
-          setSaveError(`API accepted ${completed.size} correction(s), but ${unpersisted.length} value(s) did not appear in the refreshed record. Persistence is not yet verified.`);
-        } else {
-          setSaveMessage(`${completed.size} correction(s) saved and confirmed by the refreshed API response. Database/audit persistence still needs verification.`);
-        }
+      } else if (!failure && completed.size > 0) {
+        setSaveMessage(
+          `${completed.size} correction(s) saved and confirmed by the backend API.`
+        );
       }
     } catch (refreshErr) {
-      const detail = refreshErr instanceof Error ? refreshErr.message : "Unknown refresh error";
-      setSaveError(`Correction requests completed: ${completed.size}/${pending.length}, but refreshing the record failed: ${detail}. Check backend state before retrying.`);
+      const detail =
+        refreshErr instanceof Error
+          ? refreshErr.message
+          : "Unknown refresh error";
+
+      setSaveError(
+        `Correction requests completed: ${completed.size}/${pending.length}, but refreshing the record failed: ${detail}. Check backend state before retrying.`
+      );
     } finally {
       setSaving(false);
     }
@@ -480,6 +434,85 @@ const refreshRecommendation = async () => {
       setSaveError(`Saved ${completed.size}/${pending.length} correction(s). Next request failed: ${failure}. Remaining edits are kept on screen.`);
     }
   };
+
+   
+const allowedDecisions: Record<string, HumanDecision[]> = {
+  UPLOADED: ["EXCEPTION"],
+  OCR_PROCESSING: ["EXCEPTION"],
+  OCR_COMPLETE: [],
+  NEEDS_REVIEW: ["REJECT", "EXCEPTION"],
+  RECOMMENDATION_PENDING: ["EXCEPTION"],
+  RECOMMENDATION_READY: [
+    "APPROVE",
+    "REJECT",
+    "EXCEPTION",
+  ],
+};
+
+const availableDecisions =
+  record ? allowedDecisions[record.status] ?? [] : [];
+
+const handleDecision = async (decision: HumanDecision) => {
+  if (
+    !record ||
+    submittingDecision ||
+    saving ||
+    validating ||
+    evaluating ||
+    hasChanges ||
+    !availableDecisions.includes(decision)
+  ) {
+    return;
+  }
+
+  const reason = decisionReason.trim();
+
+  if (!reason) {
+    setDecisionError("Please enter a decision reason.");
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Submit ${decision} for BOL ${
+      record.fields.bolNumber.normalizedValue ?? record.recordId
+    }?\n\nReason: ${reason}\n\nThis action updates the backend record.`
+  );
+
+  if (!confirmed) return;
+
+  setSubmittingDecision(true);
+  setDecisionError("");
+  setDecisionMessage("");
+
+  try {
+    const result = await submitBillingDecision(
+      record.recordId,
+      decision,
+      reason
+    );
+
+    const updatedRecord = await getBillingRecord(record.recordId);
+
+    setRecord(updatedRecord);
+    setDraft(createDraft(updatedRecord));
+    setValidationResult(null);
+    setEvaluationResult(null);
+    setDecisionReason("");
+
+    setDecisionMessage(
+      `${result.decision} submitted. Backend status: ${updatedRecord.status}`
+    );
+  } catch (err) {
+    setDecisionError(
+      err instanceof Error
+        ? err.message
+        : "Unable to submit the decision."
+    );
+  } finally {
+    setSubmittingDecision(false);
+  }
+};
+
 
   const renderField = (
     key: string,
@@ -625,14 +658,7 @@ const refreshRecommendation = async () => {
         </span>
       </div>
 
-      {isMock && (
-        <div className="review-message review-message-info"
-          style={{ marginBottom: "20px" }}
-        >
-          Demo data: The backend record could not be loaded.
-          These values come from the sample dataset.
-        </div>
-      )}
+
 
       {/* THREE-PANEL WORKSPACE */}
 
@@ -892,16 +918,16 @@ const refreshRecommendation = async () => {
 
               <button
                 className="review-btn review-btn-primary"
-                disabled={!hasChanges || saving || isMock}
+                disabled={!hasChanges || saving}
                 onClick={saveChanges}
-                title={isMock ? "Cannot save demo records to backend" : undefined}
+                
               >
                 {saving ? "Saving..." : "Save Changes"}
               </button>
               <button
                 type="button"
                 className="review-btn review-btn-secondary"
-                disabled={isMock || saving || validating || hasChanges}
+                disabled={saving || validating || hasChanges}
                 onClick={runValidation}
                >
               {validating ? "Validating..." : "Validate Record"}
@@ -911,8 +937,7 @@ const refreshRecommendation = async () => {
             type="button"
             className="review-btn review-btn-secondary"
             disabled={
-            isMock ||
-            saving ||
+                    saving ||
             validating ||
             evaluating ||
             hasChanges
@@ -924,14 +949,98 @@ const refreshRecommendation = async () => {
 
             </div>
 
-{evaluationError && (
-  <div
-    className="review-message"
-    role="alert"
-    style={{ color: "#a21d1d" }}
+
+<div
+  className="review-recommendation"
+  style={{ marginTop: "24px" }}
+>
+  <h3>Human Decision</h3>
+
+  <p>
+    <strong>Current Status:</strong>{" "}
+    {record.status.replace(/_/g, " ")}
+  </p>
+
+  <label
+    htmlFor="decision-reason"
+    className="review-field-label"
   >
-    Recommendation refresh failed: {evaluationError}
+    Decision Reason
+  </label>
+
+  <textarea
+    id="decision-reason"
+    value={decisionReason}
+    onChange={(e) => setDecisionReason(e.target.value)}
+    placeholder="Enter a reason for your decision..."
+    rows={3}
+    disabled={submittingDecision}
+    style={{
+      width: "100%",
+      padding: "12px",
+      borderRadius: "8px",
+      border: "1px solid #dce2ea",
+      marginTop: "8px",
+      marginBottom: "14px",
+      boxSizing: "border-box",
+    }}
+  />
+
+  <div className="review-actions">
+    {(
+      [
+        ["APPROVE", "Approve"],
+        ["REJECT", "Reject"],
+        ["EXCEPTION", "Exception"],
+      ] as const
+    ).map(([decision, label]) => (
+      <button
+        key={decision}
+        type="button"
+        className="review-btn review-btn-secondary"
+        disabled={
+          !availableDecisions.includes(decision) ||
+          submittingDecision ||
+          saving ||
+          validating ||
+          evaluating ||
+          hasChanges ||
+          false
+        }
+        onClick={() => void handleDecision(decision)}
+      >
+        {submittingDecision ? "Submitting..." : label}
+      </button>
+    ))}
   </div>
+
+  {decisionError && (
+    <p role="alert" style={{ color: "#a21d1d" }}>
+      {decisionError}
+    </p>
+  )}
+
+  {decisionMessage && (
+    <p role="status" style={{ color: "#166534" }}>
+      {decisionMessage}
+    </p>
+  )}
+
+  <p className="review-recommendation-note">
+    Decisions are submitted to Team B backend.
+    Reviewer identity integration is not yet complete.
+  </p>
+</div>
+
+
+            {evaluationError && (
+            <div
+            className="review-message"
+            role="alert"
+            style={{ color: "#a21d1d" }}
+            >
+            Recommendation refresh failed: {evaluationError}
+           </div>
 )}
 
 
@@ -1347,7 +1456,7 @@ const refreshRecommendation = async () => {
 
             
 
-            {hasChanges && !isMock && (
+            {hasChanges && (
   <p className="review-recommendation-note">
     Save or discard your changes before validating.
   </p>
@@ -1364,9 +1473,7 @@ const refreshRecommendation = async () => {
               </div>
             )}
             <div className="review-message review-message-info">
-              {isMock
-                ? "Demo record: saving is disabled."
-                : hasChanges
+              {hasChanges
                 ? "You have unsaved changes. Save Changes sends PATCH requests to Django."
                 : "No unsaved changes."}
             </div>
@@ -1374,9 +1481,9 @@ const refreshRecommendation = async () => {
             <p className="review-recommendation-note"
               style={{ marginTop: "12px" }}
             >
-              Approval, follow-up and row exclusion
-              actions will be connected in the next
-              workflow milestone.
+               Human decision actions are integrated with the Team B
+              backend. Follow-up and row exclusion features are
+              pending further integration.
             </p>
           </div>
         </section>

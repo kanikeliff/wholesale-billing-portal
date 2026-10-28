@@ -1,5 +1,5 @@
 import BolPdfViewer from "../components/BolPdfViewer";
-import { useState, type ChangeEvent } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import { Link } from "react-router-dom";
 
 import {
@@ -7,16 +7,12 @@ import {
   type BillingRecord,
 } from "../api/billingRecordApi";
 
-import { uploadBillingRecord } from "../api/uploadApi";
-
 type UploadStatus =
   | "idle"
   | "uploading"
   | "processing"
   | "success"
   | "error";
-
-const SAMPLE_PDF_URL = "/sample-bol.pdf";
 
 const colors = {
   brand: "#b21f36",
@@ -29,8 +25,21 @@ const colors = {
 };
 
 export default function UploadPage() {
+  
   const [selectedFile, setSelectedFile] =
     useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+
+  // Local preview of the actual selected file; not a server document URL.
+  useEffect(() => {
+    if (!selectedFile) {
+      setPreviewUrl("");
+      return;
+    }
+    const url = URL.createObjectURL(selectedFile);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [selectedFile]);
 
   const [uploadStatus, setUploadStatus] =
     useState<UploadStatus>("idle");
@@ -87,38 +96,77 @@ export default function UploadPage() {
     setSelectedFile(file);
   };
 
+  
+  // Upload the selected document. Never substitute a seeded/mock billing record.
   const handleUpload = async () => {
     if (!selectedFile || isProcessing) return;
 
+    setErrorMessage("");
+    setBackendRecord(null);
+    setUploadStatus("uploading");
+
     try {
-      setErrorMessage("");
-      setBackendRecord(null);
+      const formData = new FormData();
+      formData.append("file", selectedFile);
 
-      setUploadStatus("uploading");
+      const baseUrl = (
+        import.meta.env.VITE_API_BASE_URL ||
+        "http://127.0.0.1:8000/api/v1"
+      ).replace(/\/$/, "");
 
-      const uploadResult =
-        await uploadBillingRecord(selectedFile);
+      // Do not set Content-Type manually; the browser supplies the boundary.
+      const response = await fetch(`${baseUrl}/billing-records/upload/`, {
+        method: "POST",
+        body: formData,
+      });
+      const result: unknown = await response.json().catch(() => null);
+      const payload =
+        result && typeof result === "object"
+          ? (result as Record<string, unknown>)
+          : {};
+      const backendMessage =
+        typeof payload.message === "string"
+          ? payload.message
+          : typeof payload.detail === "string"
+          ? payload.detail
+          : null;
+
+      if (response.status === 503) {
+        throw new Error(
+          backendMessage ||
+            "The backend upload endpoint is reachable, but OCR processing is not configured yet (HTTP 503)."
+        );
+      }
+      if (response.status === 202) {
+        throw new Error(
+          "Upload accepted for asynchronous processing (HTTP 202). The backend must provide a job-status endpoint before the result can be opened."
+        );
+      }
+      if (!response.ok) {
+        throw new Error(
+          backendMessage || `Upload failed (HTTP ${response.status}).`
+        );
+      }
+
+      const recordId = payload.recordId;
+      if (typeof recordId !== "string" || !recordId.trim()) {
+        throw new Error(
+          "The upload response did not include a saved billing record ID."
+        );
+      }
 
       setUploadStatus("processing");
-
-      const record = await getBillingRecord(
-        uploadResult.recordId
-      );
-
-      setBackendRecord(record);
+      // Confirm the uploaded record is readable through the existing API.
+      const savedRecord = await getBillingRecord(recordId);
+      setBackendRecord(savedRecord);
       setUploadStatus("success");
     } catch (error) {
-      console.error(
-        "Unable to upload billing document:",
-        error
-      );
-
+      console.error("BOL upload failed:", error);
       setUploadStatus("error");
-
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Unable to upload the billing document."
+          : "Unable to upload the BOL document."
       );
     }
   };
@@ -127,13 +175,13 @@ export default function UploadPage() {
     ? `${(selectedFile.size / 1024).toFixed(1)} KB`
     : "";
 
-  const statusLabel =
+    const statusLabel =
     uploadStatus === "uploading"
-      ? "Preparing Demo"
+      ? "Uploading BOL"
       : uploadStatus === "processing"
-      ? "Loading OCR Record"
+      ? "Loading Saved Record"
       : uploadStatus === "success"
-      ? "Sample Record Ready"
+      ? "BOL Uploaded Successfully"
       : uploadStatus === "error"
       ? "Action Required"
       : "Select Document";
@@ -524,17 +572,10 @@ export default function UploadPage() {
         <section className="upload-card">
           <h2>Select Document</h2>
           <p className="upload-description">
-            Select a Bill of Lading document to inspect
-            the sample OCR review workflow.
+            Select a Bill of Lading document to upload
+            and process using the backend OCR pipeline.
             Supported formats: PDF, JPG, JPEG and PNG.
           </p>
-
-          <div className="upload-demo-notice">
-            <strong>Demo Mode:</strong> File selection is
-            available, but live document upload and OCR
-            processing are not connected yet. The result
-            uses the existing backend record rec_001.
-          </div>
 
           <div className="upload-dropzone">
             <label htmlFor="bol-file">
@@ -579,16 +620,15 @@ export default function UploadPage() {
               disabled={!selectedFile || isProcessing}
             >
               {isProcessing
-                ? "Loading Demo..."
-                : "Load Sample OCR Result"}
+                ? "Uploading / processing..."
+                : "Upload & Process BOL"}
             </button>
 
             <span style={{
               color: colors.muted,
               fontSize: 12
             }}>
-              The selected file will not be sent to
-              the backend.
+              Your selected file will be sent to the Django backend.
             </span>
           </div>
 
@@ -603,16 +643,16 @@ export default function UploadPage() {
                 </span>
                 <strong>
                   {uploadStatus === "success"
-                    ? "Backend sample record loaded"
-                    : "Preparing sample record"}
+                    ? "Billing record saved successfully"
+                    : "Processing document"}
                 </strong>
 
                 <p>
                   {uploadStatus === "uploading"
-                    ? "Starting the demonstration..."
+                    ? "Sending the selected BOL document to the backend..."
                     : uploadStatus === "processing"
-                    ? "Retrieving the sample OCR data..."
-                    : "The sample record is ready for review."}
+                    ? "Retrieving the saved billing record..."
+                    : "The billing record is ready for review."}
                 </p>
               </div>
             )}
@@ -632,13 +672,12 @@ export default function UploadPage() {
           backendRecord && (
             <section className="upload-card">
               <div className="upload-success-banner">
-                Sample billing record retrieved from
-                the backend successfully.
+                BOL processed and saved by the backend successfully.
               </div>
 
-              <h2>Sample OCR Result</h2>
+              <h2>OCR Result</h2>
               <p className="upload-description">
-                Compare the sample document with
+                Compare the selected document with
                 its extracted billing information.
                 Continue to the Review Workspace
                 to inspect individual fields.
@@ -649,21 +688,31 @@ export default function UploadPage() {
                 <div className="upload-preview-card">
                   <h2>Original BOL Preview</h2>
                   <p className="upload-description">
-                    {backendRecord.document?.fileName ?? "Original BOL unavailable"}
-                    {" · "}Development sample
+                    {selectedFile?.name ?? "Original BOL"}
+                    {" · "}Local preview
                   </p>
 
-                  <BolPdfViewer fileUrl={SAMPLE_PDF_URL} />
+                  {previewUrl ? (
+                    selectedFile?.type === "application/pdf" ? (
+                      <BolPdfViewer fileUrl={previewUrl} />
+                    ) : (
+                      <img
+                        src={previewUrl}
+                        alt="Selected BOL document"
+                        style={{ width: "100%", height: "auto", objectFit: "contain" }}
+                      />
+                    )
+                  ) : (
+                    <p>No local document preview available.</p>
+                  )}
 
-                  <div className="upload-pdf-actions">
-                    <a
-                      href={SAMPLE_PDF_URL}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Open Sample PDF ↗
-                    </a>
-                  </div>
+                  {previewUrl && (
+                    <div className="upload-pdf-actions">
+                      <a href={previewUrl} target="_blank" rel="noreferrer">
+                        Open Selected Document ↗
+                      </a>
+                    </div>
+                  )}
                 </div>
 
                 {/* OCR RESULT */}
@@ -730,7 +779,7 @@ export default function UploadPage() {
                         Source File
                       </span>
                       <span className="upload-info-value">
-                        {backendRecord.document?.fileName ?? "Original BOL unavailable"}
+                      {selectedFile?.name ?? "Unavailable"}
                       </span>
                     </div>
                   </div>
@@ -757,7 +806,7 @@ export default function UploadPage() {
                   fontSize: 13,
                   color: colors.muted
                 }}>
-                  Ready to inspect sample OCR fields.
+                  Ready to inspect the saved OCR fields.
                 </span>
 
                 <Link
