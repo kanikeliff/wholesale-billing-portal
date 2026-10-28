@@ -21,6 +21,7 @@ class CorrectionService:
     }
 
     CORRECTABLE_STATUSES = {
+        RecordStatus.OCR_COMPLETE.value,
         RecordStatus.NEEDS_REVIEW.value,
         RecordStatus.RECOMMENDATION_READY.value,
     }
