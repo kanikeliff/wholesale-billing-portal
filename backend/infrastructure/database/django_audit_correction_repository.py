@@ -35,6 +35,7 @@ class DjangoAuditCorrectionRepository:
         old_value,
         new_value,
         reviewed_by=None,
+        resulting_status="RECOMMENDATION_PENDING",
     ):
         model_field = self.RECORD_FIELD_MAP.get(field_name)
 
@@ -64,10 +65,12 @@ class DjangoAuditCorrectionRepository:
                     )
 
         setattr(record, model_field, value)
+        record.status = resulting_status
 
         record.save(
             update_fields=[
                 model_field,
+                "status",
                 "updated_at",
             ]
         )
@@ -94,6 +97,7 @@ class DjangoAuditCorrectionRepository:
         old_value,
         new_value,
         reviewed_by=None,
+        resulting_status="RECOMMENDATION_PENDING",
     ):
         model_field = self.LINE_ITEM_FIELD_MAP.get(field_name)
 
@@ -103,13 +107,21 @@ class DjangoAuditCorrectionRepository:
             )
 
         try:
+            record = (
+                BillingRecord.objects
+                .select_for_update()
+                .get(record_id=record_id)
+            )
+        except (BillingRecord.DoesNotExist, ValueError):
+            raise ValueError("Billing record not found.")
+
+        try:
             line_item = (
                 LineItem.objects
                 .select_for_update()
-                .select_related("billing_record")
                 .get(
                     line_item_id=line_item_id,
-                    billing_record_id=record_id,
+                    billing_record=record,
                 )
             )
         except (LineItem.DoesNotExist, ValueError):
@@ -131,8 +143,16 @@ class DjangoAuditCorrectionRepository:
             update_fields=[model_field]
         )
 
+        record.status = resulting_status
+        record.save(
+            update_fields=[
+                "status",
+                "updated_at",
+            ]
+        )
+
         return AuditEvent.objects.create(
-            billing_record=line_item.billing_record,
+            billing_record=record,
             line_item=line_item,
             event_type="FIELD_CORRECTION",
             field_name=field_name,

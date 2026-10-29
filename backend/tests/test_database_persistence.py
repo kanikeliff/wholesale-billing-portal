@@ -1,4 +1,5 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.test import TestCase
 
@@ -164,6 +165,96 @@ class DatabasePersistenceTests(TestCase):
         self.assertEqual(extracted.normalized_value, 7000)
 
         self.assertTrue(result["requiresReevaluation"])
+
+
+    def test_record_correction_updates_value_status_and_writes_audit(self):
+        record = BillingRecord.objects.create(
+            bol_number="RECORD-CORRECTION-TEST",
+            origin="Albany",
+            status="RECOMMENDATION_READY",
+        )
+
+        audit = self.correction_repository.apply_record_field_correction(
+            record_id=record.record_id,
+            field_name="origin",
+            old_value="Albany",
+            new_value="Syracuse",
+            reviewed_by="test-user",
+        )
+
+        record.refresh_from_db()
+
+        self.assertEqual(record.origin, "Syracuse")
+        self.assertEqual(
+            record.status,
+            "RECOMMENDATION_PENDING",
+        )
+
+        self.assertEqual(
+            audit.billing_record_id,
+            record.record_id,
+        )
+        self.assertEqual(audit.field_name, "origin")
+        self.assertEqual(audit.old_value, "Albany")
+        self.assertEqual(audit.new_value, "Syracuse")
+        self.assertEqual(audit.actor_id, "test-user")
+        self.assertEqual(
+            audit.metadata,
+            {"scope": "record"},
+        )
+
+    def test_line_item_correction_rolls_back_when_audit_write_fails(self):
+        record = BillingRecord.objects.create(
+            bol_number="ROLLBACK-TEST",
+            status="RECOMMENDATION_READY",
+        )
+
+        line_item = LineItem.objects.create(
+            billing_record=record,
+            line_number=1,
+            product="87 Gas",
+            gross_gallons=Decimal("7000.00"),
+            net_gallons=Decimal("6965.00"),
+        )
+
+        with patch(
+            "infrastructure.database."
+            "django_audit_correction_repository."
+            "AuditEvent.objects.create",
+            side_effect=RuntimeError("audit write failed"),
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "audit write failed",
+            ):
+                self.correction_repository.apply_line_item_correction(
+                    record_id=record.record_id,
+                    line_item_id=line_item.line_item_id,
+                    field_name="grossGallons",
+                    old_value=7000.0,
+                    new_value=6995,
+                    reviewed_by="test-user",
+                )
+
+        record.refresh_from_db()
+        line_item.refresh_from_db()
+
+        self.assertEqual(
+            line_item.gross_gallons,
+            Decimal("7000.00"),
+        )
+        self.assertEqual(
+            record.status,
+            "RECOMMENDATION_READY",
+        )
+
+        self.assertFalse(
+            AuditEvent.objects.filter(
+                billing_record=record,
+                line_item=line_item,
+                field_name="grossGallons",
+            ).exists()
+        )
 
     def test_human_decision_links_current_recommendation_and_updates_status(
         self,

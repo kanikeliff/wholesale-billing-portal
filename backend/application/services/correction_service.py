@@ -57,6 +57,9 @@ class CorrectionService:
             field_name,
         )
 
+        pending_status = RecordStatus.RECOMMENDATION_PENDING.value
+        self._validate_pending_transition(record["status"])
+
         if self.correction_repository is not None:
             self.correction_repository.apply_record_field_correction(
                 record_id=record_id,
@@ -64,12 +67,13 @@ class CorrectionService:
                 old_value=old_value,
                 new_value=new_value,
                 reviewed_by=reviewed_by,
+                resulting_status=pending_status,
             )
-
-        self._mark_recommendation_pending(
-            record_id,
-            record["status"],
-        )
+        elif self.billing_record_repository is not None:
+            self.billing_record_repository.update_status(
+                record_id,
+                pending_status,
+            )
 
         return {
             "recordId": record_id,
@@ -105,6 +109,9 @@ class CorrectionService:
             field_name,
         )
 
+        pending_status = RecordStatus.RECOMMENDATION_PENDING.value
+        self._validate_pending_transition(record["status"])
+
         if self.correction_repository is not None:
             self.correction_repository.apply_line_item_correction(
                 record_id=record_id,
@@ -113,12 +120,13 @@ class CorrectionService:
                 old_value=old_value,
                 new_value=new_value,
                 reviewed_by=reviewed_by,
+                resulting_status=pending_status,
             )
-
-        self._mark_recommendation_pending(
-            record_id,
-            record["status"],
-        )
+        elif self.billing_record_repository is not None:
+            self.billing_record_repository.update_status(
+                record_id,
+                pending_status,
+            )
 
         return {
             "recordId": record_id,
@@ -220,19 +228,12 @@ class CorrectionService:
 
         return field
 
-    def _mark_recommendation_pending(
+    def _validate_pending_transition(
         self,
-        record_id,
         current_status,
     ):
         if self.workflow_service is not None:
             self.workflow_service.validate_transition(
                 current_status,
-                RecordStatus.RECOMMENDATION_PENDING.value,
-            )
-
-        if self.billing_record_repository is not None:
-            self.billing_record_repository.update_status(
-                record_id,
                 RecordStatus.RECOMMENDATION_PENDING.value,
             )
