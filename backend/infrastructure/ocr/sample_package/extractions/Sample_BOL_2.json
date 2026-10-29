@@ -1,0 +1,18 @@
+{
+  "bol_number": "239680",
+  "contract_number": null,
+  "origin": "495 River Road Glensmont, New York 12077",
+  "supplier": "CITGO Petroleum Corp",
+  "carrier": "JAMES MIRABITO & SONS MIRABITO HOLDINGS INC",
+  "transaction_date": "9/17/2026 05:22",
+  "destination": "Binghamton, NY",
+  "products": [
+    {
+      "product": "MV UNDYED 15 PPM Sulfur #2 DF",
+      "product_code": "13900",
+      "net_gallons": "2984",
+      "gross_gallons": "3000",
+      "e3_stock_id": null
+    }
+  ]
+}

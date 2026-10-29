@@ -1,0 +1,669 @@
+{
+  "package_version": "efe-export-v1",
+  "created_at": "2026-10-22T23:23:36.781780+00:00",
+  "scope": "Current saved Ministral results page and its paired Granite precision comparison",
+  "machine_label": "M5 Pro · 24 GB",
+  "extraction_schema_version": "bol-lab-v1",
+  "reference_status": "partial_provisional_not_independently_verified",
+  "new_inference": false,
+  "canonical_backend_adapter_applied": false,
+  "extraction_count": 28,
+  "samples": [
+    {
+      "sample_id": "Sample_BOL_1",
+      "document_id": "5daaa24d5c0844ffb44c01a255a2a7a6",
+      "display_name": "Sample BOL #1.pdf",
+      "variant": "original",
+      "source_file": "original_samples/Sample_BOL_1.pdf",
+      "source_file_sha256": "9dbf3df5747baaff41c75f5604edb6d781e91bc8aeee4ba6d69d14328559ff7c",
+      "rendered_input": "rendered_inputs/Sample_BOL_1.png",
+      "input_sha256": "749860e77970a1ff402f58e08ecee3888790b365bee608c5c8d1a3d19018294f",
+      "models": [
+        {
+          "model_id": "ministral_14b_4bit",
+          "model": "Ministral 3 14B Instruct · 4-bit",
+          "repeat": 1,
+          "experiment_run_id": "20261021T044758Z-e63c4831",
+          "extracted_json": "extracted_json/ministral_14b_4bit/Sample_BOL_1_repeat_1.json",
+          "test_result": "test_results/ministral_14b_4bit/Sample_BOL_1_repeat_1.json"
+        },
+        {
+          "model_id": "granite_8bit",
+          "model": "Granite Vision 4.1 4B · 8-bit",
+          "repeat": 1,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_8bit/Sample_BOL_1_repeat_1.json",
+          "test_result": "test_results/granite_8bit/Sample_BOL_1_repeat_1.json"
+        },
+        {
+          "model_id": "granite_bf16",
+          "model": "Granite Vision 4.1 4B · BF16",
+          "repeat": 1,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_bf16/Sample_BOL_1_repeat_1.json",
+          "test_result": "test_results/granite_bf16/Sample_BOL_1_repeat_1.json"
+        },
+        {
+          "model_id": "granite_bf16",
+          "model": "Granite Vision 4.1 4B · BF16",
+          "repeat": 2,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_bf16/Sample_BOL_1_repeat_2.json",
+          "test_result": "test_results/granite_bf16/Sample_BOL_1_repeat_2.json"
+        },
+        {
+          "model_id": "granite_8bit",
+          "model": "Granite Vision 4.1 4B · 8-bit",
+          "repeat": 2,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_8bit/Sample_BOL_1_repeat_2.json",
+          "test_result": "test_results/granite_8bit/Sample_BOL_1_repeat_2.json"
+        },
+        {
+          "model_id": "granite_8bit",
+          "model": "Granite Vision 4.1 4B · 8-bit",
+          "repeat": 3,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_8bit/Sample_BOL_1_repeat_3.json",
+          "test_result": "test_results/granite_8bit/Sample_BOL_1_repeat_3.json"
+        },
+        {
+          "model_id": "granite_bf16",
+          "model": "Granite Vision 4.1 4B · BF16",
+          "repeat": 3,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_bf16/Sample_BOL_1_repeat_3.json",
+          "test_result": "test_results/granite_bf16/Sample_BOL_1_repeat_3.json"
+        }
+      ]
+    },
+    {
+      "sample_id": "Sample_BOL_2",
+      "document_id": "bd0bfe6ef2f24420b570626a5ee48ab9",
+      "display_name": "Sample BOL #2.pdf",
+      "variant": "original",
+      "source_file": "original_samples/Sample_BOL_2.pdf",
+      "source_file_sha256": "a36fbf494b6f3f42994aab7a828fcf14d416582abe656f99f06ef28fe0e252d3",
+      "rendered_input": "rendered_inputs/Sample_BOL_2.png",
+      "input_sha256": "d325b39cdf4c8f94d3e0deae9a7f2affb884ecd9e3bc0ef0a6279c3f733dbd7e",
+      "models": [
+        {
+          "model_id": "ministral_14b_4bit",
+          "model": "Ministral 3 14B Instruct · 4-bit",
+          "repeat": 1,
+          "experiment_run_id": "20261021T044758Z-e63c4831",
+          "extracted_json": "extracted_json/ministral_14b_4bit/Sample_BOL_2_repeat_1.json",
+          "test_result": "test_results/ministral_14b_4bit/Sample_BOL_2_repeat_1.json"
+        },
+        {
+          "model_id": "granite_bf16",
+          "model": "Granite Vision 4.1 4B · BF16",
+          "repeat": 1,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_bf16/Sample_BOL_2_repeat_1.json",
+          "test_result": "test_results/granite_bf16/Sample_BOL_2_repeat_1.json"
+        },
+        {
+          "model_id": "granite_8bit",
+          "model": "Granite Vision 4.1 4B · 8-bit",
+          "repeat": 1,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_8bit/Sample_BOL_2_repeat_1.json",
+          "test_result": "test_results/granite_8bit/Sample_BOL_2_repeat_1.json"
+        },
+        {
+          "model_id": "granite_8bit",
+          "model": "Granite Vision 4.1 4B · 8-bit",
+          "repeat": 2,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_8bit/Sample_BOL_2_repeat_2.json",
+          "test_result": "test_results/granite_8bit/Sample_BOL_2_repeat_2.json"
+        },
+        {
+          "model_id": "granite_bf16",
+          "model": "Granite Vision 4.1 4B · BF16",
+          "repeat": 2,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_bf16/Sample_BOL_2_repeat_2.json",
+          "test_result": "test_results/granite_bf16/Sample_BOL_2_repeat_2.json"
+        },
+        {
+          "model_id": "granite_bf16",
+          "model": "Granite Vision 4.1 4B · BF16",
+          "repeat": 3,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_bf16/Sample_BOL_2_repeat_3.json",
+          "test_result": "test_results/granite_bf16/Sample_BOL_2_repeat_3.json"
+        },
+        {
+          "model_id": "granite_8bit",
+          "model": "Granite Vision 4.1 4B · 8-bit",
+          "repeat": 3,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_8bit/Sample_BOL_2_repeat_3.json",
+          "test_result": "test_results/granite_8bit/Sample_BOL_2_repeat_3.json"
+        }
+      ]
+    },
+    {
+      "sample_id": "Sample_BOL_3",
+      "document_id": "c62611f3f9e74687b277a2c7a6ce5041",
+      "display_name": "Sample BOL #3.pdf",
+      "variant": "original",
+      "source_file": "original_samples/Sample_BOL_3.pdf",
+      "source_file_sha256": "ed7182ac6a0f0415488403bca9440a34aa8ba3ded575daeb345d95af911e9c6c",
+      "rendered_input": "rendered_inputs/Sample_BOL_3.png",
+      "input_sha256": "86dcb01c1517eff466915ed68936ab028c0e36581b455bbf9fbaf002c36b8484",
+      "models": [
+        {
+          "model_id": "ministral_14b_4bit",
+          "model": "Ministral 3 14B Instruct · 4-bit",
+          "repeat": 1,
+          "experiment_run_id": "20261021T044758Z-e63c4831",
+          "extracted_json": "extracted_json/ministral_14b_4bit/Sample_BOL_3_repeat_1.json",
+          "test_result": "test_results/ministral_14b_4bit/Sample_BOL_3_repeat_1.json"
+        },
+        {
+          "model_id": "granite_8bit",
+          "model": "Granite Vision 4.1 4B · 8-bit",
+          "repeat": 1,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_8bit/Sample_BOL_3_repeat_1.json",
+          "test_result": "test_results/granite_8bit/Sample_BOL_3_repeat_1.json"
+        },
+        {
+          "model_id": "granite_bf16",
+          "model": "Granite Vision 4.1 4B · BF16",
+          "repeat": 1,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_bf16/Sample_BOL_3_repeat_1.json",
+          "test_result": "test_results/granite_bf16/Sample_BOL_3_repeat_1.json"
+        },
+        {
+          "model_id": "granite_bf16",
+          "model": "Granite Vision 4.1 4B · BF16",
+          "repeat": 2,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_bf16/Sample_BOL_3_repeat_2.json",
+          "test_result": "test_results/granite_bf16/Sample_BOL_3_repeat_2.json"
+        },
+        {
+          "model_id": "granite_8bit",
+          "model": "Granite Vision 4.1 4B · 8-bit",
+          "repeat": 2,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_8bit/Sample_BOL_3_repeat_2.json",
+          "test_result": "test_results/granite_8bit/Sample_BOL_3_repeat_2.json"
+        },
+        {
+          "model_id": "granite_8bit",
+          "model": "Granite Vision 4.1 4B · 8-bit",
+          "repeat": 3,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_8bit/Sample_BOL_3_repeat_3.json",
+          "test_result": "test_results/granite_8bit/Sample_BOL_3_repeat_3.json"
+        },
+        {
+          "model_id": "granite_bf16",
+          "model": "Granite Vision 4.1 4B · BF16",
+          "repeat": 3,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_bf16/Sample_BOL_3_repeat_3.json",
+          "test_result": "test_results/granite_bf16/Sample_BOL_3_repeat_3.json"
+        }
+      ]
+    },
+    {
+      "sample_id": "Sample_BOL_1_synthetic_faint",
+      "document_id": "178ee2782ded4458891964428daeb8df",
+      "display_name": "Sample BOL #1 · faint stress test.png",
+      "variant": "faint-v1",
+      "source_file": "stress_samples/Sample_BOL_1_synthetic_faint.png",
+      "source_file_sha256": "c008192ccc2349739e33568bf3d896caf4f9b3e4f7f2523260f6a5cb842fcd2b",
+      "rendered_input": "rendered_inputs/Sample_BOL_1_synthetic_faint.png",
+      "input_sha256": "04ee83cfacf17c5ef95edc3626f76038d0eb74b89960bb291b42668cd1e17480",
+      "models": [
+        {
+          "model_id": "ministral_14b_4bit",
+          "model": "Ministral 3 14B Instruct · 4-bit",
+          "repeat": 1,
+          "experiment_run_id": "20261021T044758Z-e63c4831",
+          "extracted_json": "extracted_json/ministral_14b_4bit/Sample_BOL_1_synthetic_faint_repeat_1.json",
+          "test_result": "test_results/ministral_14b_4bit/Sample_BOL_1_synthetic_faint_repeat_1.json"
+        },
+        {
+          "model_id": "granite_bf16",
+          "model": "Granite Vision 4.1 4B · BF16",
+          "repeat": 1,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_bf16/Sample_BOL_1_synthetic_faint_repeat_1.json",
+          "test_result": "test_results/granite_bf16/Sample_BOL_1_synthetic_faint_repeat_1.json"
+        },
+        {
+          "model_id": "granite_8bit",
+          "model": "Granite Vision 4.1 4B · 8-bit",
+          "repeat": 1,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_8bit/Sample_BOL_1_synthetic_faint_repeat_1.json",
+          "test_result": "test_results/granite_8bit/Sample_BOL_1_synthetic_faint_repeat_1.json"
+        },
+        {
+          "model_id": "granite_8bit",
+          "model": "Granite Vision 4.1 4B · 8-bit",
+          "repeat": 2,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_8bit/Sample_BOL_1_synthetic_faint_repeat_2.json",
+          "test_result": "test_results/granite_8bit/Sample_BOL_1_synthetic_faint_repeat_2.json"
+        },
+        {
+          "model_id": "granite_bf16",
+          "model": "Granite Vision 4.1 4B · BF16",
+          "repeat": 2,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_bf16/Sample_BOL_1_synthetic_faint_repeat_2.json",
+          "test_result": "test_results/granite_bf16/Sample_BOL_1_synthetic_faint_repeat_2.json"
+        },
+        {
+          "model_id": "granite_bf16",
+          "model": "Granite Vision 4.1 4B · BF16",
+          "repeat": 3,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_bf16/Sample_BOL_1_synthetic_faint_repeat_3.json",
+          "test_result": "test_results/granite_bf16/Sample_BOL_1_synthetic_faint_repeat_3.json"
+        },
+        {
+          "model_id": "granite_8bit",
+          "model": "Granite Vision 4.1 4B · 8-bit",
+          "repeat": 3,
+          "experiment_run_id": "20261021T045848Z-e8ef67f3",
+          "extracted_json": "extracted_json/granite_8bit/Sample_BOL_1_synthetic_faint_repeat_3.json",
+          "test_result": "test_results/granite_8bit/Sample_BOL_1_synthetic_faint_repeat_3.json"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "all_original_pdfs_match_transfer_bytes": true,
+    "all_input_image_hashes_match_saved_tests": true,
+    "all_28_extractions_match_saved_candidates_and_pass_current_schema": true,
+    "lab_logical_records_sha256_before": "8721b98c7d177333ddc7fa2d0b8abafd19bc6751f91835011910029b4fe0de7e",
+    "lab_logical_records_sha256_after": "8721b98c7d177333ddc7fa2d0b8abafd19bc6751f91835011910029b4fe0de7e"
+  },
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 5080,
+      "sha256": "aa216683f2dcda4097281543ebd30250c6cafd6abab18ac7cedeaaac86874bfa"
+    },
+    {
+      "path": "extracted_json/granite_8bit/Sample_BOL_1_repeat_1.json",
+      "bytes": 502,
+      "sha256": "79ab6a02e219b12caa715d0d43cd9940304e3c6c11c24e49c5bcf2492c1a7cda"
+    },
+    {
+      "path": "extracted_json/granite_8bit/Sample_BOL_1_repeat_2.json",
+      "bytes": 502,
+      "sha256": "79ab6a02e219b12caa715d0d43cd9940304e3c6c11c24e49c5bcf2492c1a7cda"
+    },
+    {
+      "path": "extracted_json/granite_8bit/Sample_BOL_1_repeat_3.json",
+      "bytes": 502,
+      "sha256": "79ab6a02e219b12caa715d0d43cd9940304e3c6c11c24e49c5bcf2492c1a7cda"
+    },
+    {
+      "path": "extracted_json/granite_8bit/Sample_BOL_1_synthetic_faint_repeat_1.json",
+      "bytes": 477,
+      "sha256": "49ed279e12c1c0d3cdd3bf6da0afbf082bbe1083c835313882f42b69398384ba"
+    },
+    {
+      "path": "extracted_json/granite_8bit/Sample_BOL_1_synthetic_faint_repeat_2.json",
+      "bytes": 477,
+      "sha256": "49ed279e12c1c0d3cdd3bf6da0afbf082bbe1083c835313882f42b69398384ba"
+    },
+    {
+      "path": "extracted_json/granite_8bit/Sample_BOL_1_synthetic_faint_repeat_3.json",
+      "bytes": 477,
+      "sha256": "49ed279e12c1c0d3cdd3bf6da0afbf082bbe1083c835313882f42b69398384ba"
+    },
+    {
+      "path": "extracted_json/granite_8bit/Sample_BOL_2_repeat_1.json",
+      "bytes": 466,
+      "sha256": "85cdaf699dd4c2daac03a27b02338f15b5939b9456ad8d4ee16240a01ea2a98d"
+    },
+    {
+      "path": "extracted_json/granite_8bit/Sample_BOL_2_repeat_2.json",
+      "bytes": 466,
+      "sha256": "85cdaf699dd4c2daac03a27b02338f15b5939b9456ad8d4ee16240a01ea2a98d"
+    },
+    {
+      "path": "extracted_json/granite_8bit/Sample_BOL_2_repeat_3.json",
+      "bytes": 466,
+      "sha256": "85cdaf699dd4c2daac03a27b02338f15b5939b9456ad8d4ee16240a01ea2a98d"
+    },
+    {
+      "path": "extracted_json/granite_8bit/Sample_BOL_3_repeat_1.json",
+      "bytes": 1020,
+      "sha256": "3a974cab9b11b8be328ce80632a751b624117feaac3cbea639b87238fd178412"
+    },
+    {
+      "path": "extracted_json/granite_8bit/Sample_BOL_3_repeat_2.json",
+      "bytes": 1020,
+      "sha256": "3a974cab9b11b8be328ce80632a751b624117feaac3cbea639b87238fd178412"
+    },
+    {
+      "path": "extracted_json/granite_8bit/Sample_BOL_3_repeat_3.json",
+      "bytes": 1020,
+      "sha256": "3a974cab9b11b8be328ce80632a751b624117feaac3cbea639b87238fd178412"
+    },
+    {
+      "path": "extracted_json/granite_bf16/Sample_BOL_1_repeat_1.json",
+      "bytes": 502,
+      "sha256": "ef83c95a7fb4b2f035ebcf492de3daa0d989c54cc62aea2338af2b89f88ddd86"
+    },
+    {
+      "path": "extracted_json/granite_bf16/Sample_BOL_1_repeat_2.json",
+      "bytes": 502,
+      "sha256": "ef83c95a7fb4b2f035ebcf492de3daa0d989c54cc62aea2338af2b89f88ddd86"
+    },
+    {
+      "path": "extracted_json/granite_bf16/Sample_BOL_1_repeat_3.json",
+      "bytes": 502,
+      "sha256": "ef83c95a7fb4b2f035ebcf492de3daa0d989c54cc62aea2338af2b89f88ddd86"
+    },
+    {
+      "path": "extracted_json/granite_bf16/Sample_BOL_1_synthetic_faint_repeat_1.json",
+      "bytes": 336,
+      "sha256": "059e1cc262769b9ee4a17e55a811b36e58c2b7d83754638eccf331079706c188"
+    },
+    {
+      "path": "extracted_json/granite_bf16/Sample_BOL_1_synthetic_faint_repeat_2.json",
+      "bytes": 336,
+      "sha256": "059e1cc262769b9ee4a17e55a811b36e58c2b7d83754638eccf331079706c188"
+    },
+    {
+      "path": "extracted_json/granite_bf16/Sample_BOL_1_synthetic_faint_repeat_3.json",
+      "bytes": 336,
+      "sha256": "059e1cc262769b9ee4a17e55a811b36e58c2b7d83754638eccf331079706c188"
+    },
+    {
+      "path": "extracted_json/granite_bf16/Sample_BOL_2_repeat_1.json",
+      "bytes": 479,
+      "sha256": "9948ec4ce23a4f5ea6614a268facf5800f3444aaa34c3703919154cc70b686e6"
+    },
+    {
+      "path": "extracted_json/granite_bf16/Sample_BOL_2_repeat_2.json",
+      "bytes": 479,
+      "sha256": "9948ec4ce23a4f5ea6614a268facf5800f3444aaa34c3703919154cc70b686e6"
+    },
+    {
+      "path": "extracted_json/granite_bf16/Sample_BOL_2_repeat_3.json",
+      "bytes": 479,
+      "sha256": "9948ec4ce23a4f5ea6614a268facf5800f3444aaa34c3703919154cc70b686e6"
+    },
+    {
+      "path": "extracted_json/granite_bf16/Sample_BOL_3_repeat_1.json",
+      "bytes": 1020,
+      "sha256": "3a974cab9b11b8be328ce80632a751b624117feaac3cbea639b87238fd178412"
+    },
+    {
+      "path": "extracted_json/granite_bf16/Sample_BOL_3_repeat_2.json",
+      "bytes": 1020,
+      "sha256": "3a974cab9b11b8be328ce80632a751b624117feaac3cbea639b87238fd178412"
+    },
+    {
+      "path": "extracted_json/granite_bf16/Sample_BOL_3_repeat_3.json",
+      "bytes": 1020,
+      "sha256": "3a974cab9b11b8be328ce80632a751b624117feaac3cbea639b87238fd178412"
+    },
+    {
+      "path": "extracted_json/ministral_14b_4bit/Sample_BOL_1_repeat_1.json",
+      "bytes": 454,
+      "sha256": "25c07e2df75ca752ae2180276a1870464db95560b0d670001afa3f007b8a1923"
+    },
+    {
+      "path": "extracted_json/ministral_14b_4bit/Sample_BOL_1_synthetic_faint_repeat_1.json",
+      "bytes": 178,
+      "sha256": "bb5aeee89f5dcad7f97675e9866d5cb02a73d8e6d983ce8485bba8cbb59e2763"
+    },
+    {
+      "path": "extracted_json/ministral_14b_4bit/Sample_BOL_2_repeat_1.json",
+      "bytes": 486,
+      "sha256": "b01148ca0eae24e62149c5b8c1607dc5b8ddafabe65c9af9c6b96bc75354f946"
+    },
+    {
+      "path": "extracted_json/ministral_14b_4bit/Sample_BOL_3_repeat_1.json",
+      "bytes": 672,
+      "sha256": "5dc6a68faed467d2251f9f5bb0dd02daabdbc53ea946992b1ce904d45596b641"
+    },
+    {
+      "path": "original_samples/Sample_BOL_1.pdf",
+      "bytes": 70949,
+      "sha256": "9dbf3df5747baaff41c75f5604edb6d781e91bc8aeee4ba6d69d14328559ff7c"
+    },
+    {
+      "path": "original_samples/Sample_BOL_2.pdf",
+      "bytes": 162454,
+      "sha256": "a36fbf494b6f3f42994aab7a828fcf14d416582abe656f99f06ef28fe0e252d3"
+    },
+    {
+      "path": "original_samples/Sample_BOL_3.pdf",
+      "bytes": 72634,
+      "sha256": "ed7182ac6a0f0415488403bca9440a34aa8ba3ded575daeb345d95af911e9c6c"
+    },
+    {
+      "path": "rendered_inputs/Sample_BOL_1.png",
+      "bytes": 486230,
+      "sha256": "749860e77970a1ff402f58e08ecee3888790b365bee608c5c8d1a3d19018294f"
+    },
+    {
+      "path": "rendered_inputs/Sample_BOL_1_synthetic_faint.png",
+      "bytes": 113575,
+      "sha256": "04ee83cfacf17c5ef95edc3626f76038d0eb74b89960bb291b42668cd1e17480"
+    },
+    {
+      "path": "rendered_inputs/Sample_BOL_2.png",
+      "bytes": 1330318,
+      "sha256": "d325b39cdf4c8f94d3e0deae9a7f2affb884ecd9e3bc0ef0a6279c3f733dbd7e"
+    },
+    {
+      "path": "rendered_inputs/Sample_BOL_3.png",
+      "bytes": 517852,
+      "sha256": "86dcb01c1517eff466915ed68936ab028c0e36581b455bbf9fbaf002c36b8484"
+    },
+    {
+      "path": "report/assets/ministral.css",
+      "bytes": 4803,
+      "sha256": "d28b5573941b442bca0b767b9d8aab83d7bb13fd4b019895549912a360a3425e"
+    },
+    {
+      "path": "report/assets/ministral.js",
+      "bytes": 12486,
+      "sha256": "768b61d296b2cadadc35b524ac1eb23a170c5cc3a8174ba87585b805b1ad4af7"
+    },
+    {
+      "path": "report/assets/style.css",
+      "bytes": 15697,
+      "sha256": "03502c7db8c46794486eb1b33718753d8496463824edd27b2df5f6a9b99f61f7"
+    },
+    {
+      "path": "report/granite_details.html",
+      "bytes": 17462,
+      "sha256": "350c08050fec2c16f6e00a501043d26f7bb57ab69fe3d79555f7512006dfe15a"
+    },
+    {
+      "path": "report/index.html",
+      "bytes": 68464,
+      "sha256": "f29d47e311f7ca31e5c6eb01ad33bdfa5508bc93699902f265c57a6c440c52ef"
+    },
+    {
+      "path": "schema/current_extraction.schema.json",
+      "bytes": 1787,
+      "sha256": "c38adf7b7f33e4429de2ed84ddc07cb227a3fa6e45c91d8fff294d3febcd1793"
+    },
+    {
+      "path": "stress_samples/Sample_BOL_1_synthetic_faint.png",
+      "bytes": 80750,
+      "sha256": "c008192ccc2349739e33568bf3d896caf4f9b3e4f7f2523260f6a5cb842fcd2b"
+    },
+    {
+      "path": "test_results/comparison_by_attempt.csv",
+      "bytes": 6157,
+      "sha256": "616acedc08822ef8576337afbf5cb3a7e8b63f23d5e495a9691d70c35f7d4738"
+    },
+    {
+      "path": "test_results/granite_8bit/Sample_BOL_1_repeat_1.json",
+      "bytes": 11577,
+      "sha256": "cafbd13318fabb7bd260fceae17b186f9fad8eb256e242afff6db29b1a1ccce5"
+    },
+    {
+      "path": "test_results/granite_8bit/Sample_BOL_1_repeat_2.json",
+      "bytes": 11584,
+      "sha256": "476fafc0ed486f6a48a4975e04a22573ff7d2a8ebaf33230b8fa79cf5178ccae"
+    },
+    {
+      "path": "test_results/granite_8bit/Sample_BOL_1_repeat_3.json",
+      "bytes": 11575,
+      "sha256": "779841bdeae9011e8e2ce889611c3030a9f4ad011f811832cbcdd8ce0d9b1e39"
+    },
+    {
+      "path": "test_results/granite_8bit/Sample_BOL_1_synthetic_faint_repeat_1.json",
+      "bytes": 11530,
+      "sha256": "e566ed02d64199a8348f4e468d84563e983991c8864620480af6d60e86b5d3ae"
+    },
+    {
+      "path": "test_results/granite_8bit/Sample_BOL_1_synthetic_faint_repeat_2.json",
+      "bytes": 11527,
+      "sha256": "8387999ee3881208b55c1503684ea7ba911626e54eb53afb37d7ef6dd3391abd"
+    },
+    {
+      "path": "test_results/granite_8bit/Sample_BOL_1_synthetic_faint_repeat_3.json",
+      "bytes": 11524,
+      "sha256": "87e7c33aecddf8804218828a0d5957614ca4168158f0558aac665da1cbce75ba"
+    },
+    {
+      "path": "test_results/granite_8bit/Sample_BOL_2_repeat_1.json",
+      "bytes": 11458,
+      "sha256": "f64956968632bc1fe0a8453574c2b189f3cc3d0a7a6ccae4fcdb7021bd711234"
+    },
+    {
+      "path": "test_results/granite_8bit/Sample_BOL_2_repeat_2.json",
+      "bytes": 11461,
+      "sha256": "3ae818fd0ba45472dbe7f90c1b20563596043d0a6ac9501f6b6812c17dce3d41"
+    },
+    {
+      "path": "test_results/granite_8bit/Sample_BOL_2_repeat_3.json",
+      "bytes": 11455,
+      "sha256": "993c6222ad8272410f61e5d2bc7cc4c8d8464e8a41f811e2a0ed5bdd1318a459"
+    },
+    {
+      "path": "test_results/granite_8bit/Sample_BOL_3_repeat_1.json",
+      "bytes": 14000,
+      "sha256": "c98d94a0c3a263a872d8f5b9a3b5c8e9d12ae9a2c2e6f9e9b15ad5581a032dbd"
+    },
+    {
+      "path": "test_results/granite_8bit/Sample_BOL_3_repeat_2.json",
+      "bytes": 13997,
+      "sha256": "a8c431ada894bf578755d96903586e85fed42f9c6000a6e094c7596067ad2f66"
+    },
+    {
+      "path": "test_results/granite_8bit/Sample_BOL_3_repeat_3.json",
+      "bytes": 13998,
+      "sha256": "59fa22b333e7420dbd90b0f669d890702ba730a255641d98dfd9754943d83be9"
+    },
+    {
+      "path": "test_results/granite_all_24_attempts.json",
+      "bytes": 310115,
+      "sha256": "281e1e6ba675d6bca091bd58e222e7f5131b3cccda51bbdb3b150b3f6373f7b7"
+    },
+    {
+      "path": "test_results/granite_bf16/Sample_BOL_1_repeat_1.json",
+      "bytes": 11549,
+      "sha256": "3854f6a6425aaf125fda53a6a8b8c47d440468ca5845068043a998ff572c28f0"
+    },
+    {
+      "path": "test_results/granite_bf16/Sample_BOL_1_repeat_2.json",
+      "bytes": 11541,
+      "sha256": "8e0db48ad61fc56bb874fea2a1a96147cd69ff1fb9e308f81b3ae282e3976774"
+    },
+    {
+      "path": "test_results/granite_bf16/Sample_BOL_1_repeat_3.json",
+      "bytes": 11540,
+      "sha256": "3585a335745b64df74a6df73d25dbb20a42c05ac7976f11eaa37192377e41853"
+    },
+    {
+      "path": "test_results/granite_bf16/Sample_BOL_1_synthetic_faint_repeat_1.json",
+      "bytes": 11055,
+      "sha256": "0638057b2e34bfaa8372c6ea987c69694099bf5cd684f580a4166577041c1eee"
+    },
+    {
+      "path": "test_results/granite_bf16/Sample_BOL_1_synthetic_faint_repeat_2.json",
+      "bytes": 11050,
+      "sha256": "b43809b4c08206dc5058162bf56be3a5377a1b64306d37c2ae57ac3e5d3fefef"
+    },
+    {
+      "path": "test_results/granite_bf16/Sample_BOL_1_synthetic_faint_repeat_3.json",
+      "bytes": 11051,
+      "sha256": "307b673db026dee68ae8a8dfcc3fb95e0533a38a0442010455f9d25c26ff172c"
+    },
+    {
+      "path": "test_results/granite_bf16/Sample_BOL_2_repeat_1.json",
+      "bytes": 11475,
+      "sha256": "12c316ee402a3edde641d0ef5631767f4c752f9f43518909dba0879977854d13"
+    },
+    {
+      "path": "test_results/granite_bf16/Sample_BOL_2_repeat_2.json",
+      "bytes": 11467,
+      "sha256": "6ca35a2060ec97d686780ec8ddc6eb89a80cd883f042021386786adc6c3ed0ca"
+    },
+    {
+      "path": "test_results/granite_bf16/Sample_BOL_2_repeat_3.json",
+      "bytes": 11473,
+      "sha256": "62acb7357f2b0fb621b969634390b3ba3309faf0b3cfb7482375b1fe0e08bc49"
+    },
+    {
+      "path": "test_results/granite_bf16/Sample_BOL_3_repeat_1.json",
+      "bytes": 13961,
+      "sha256": "cb92a4f8b5008b51d66fc8fde960c42720bf32748799976dc30e8adc7696d757"
+    },
+    {
+      "path": "test_results/granite_bf16/Sample_BOL_3_repeat_2.json",
+      "bytes": 13967,
+      "sha256": "f37273c79c10a7b4882e519aebaae513dfe3310a206c01f415ee74390e3d24ad"
+    },
+    {
+      "path": "test_results/granite_bf16/Sample_BOL_3_repeat_3.json",
+      "bytes": 13951,
+      "sha256": "4a28e17f6fc63681041ff9efaedca81ff7d38ff1bb74f7a56b5f6977d17bcc03"
+    },
+    {
+      "path": "test_results/granite_comparison_summary.json",
+      "bytes": 14608,
+      "sha256": "dd058133673b4d3aa09c5d781d362839f6be0154ccb0e1797feeaca3359d6ff7"
+    },
+    {
+      "path": "test_results/ministral_14b_4bit/Sample_BOL_1_repeat_1.json",
+      "bytes": 11368,
+      "sha256": "2e2f373f7172ee3ccdd72c363e00d39a1efb489e7339085eaaeaf33fa638b36d"
+    },
+    {
+      "path": "test_results/ministral_14b_4bit/Sample_BOL_1_synthetic_faint_repeat_1.json",
+      "bytes": 10615,
+      "sha256": "b876d18d7238d96c0d6c701ce8208086dc50849c97960f4cf108766b747846cd"
+    },
+    {
+      "path": "test_results/ministral_14b_4bit/Sample_BOL_2_repeat_1.json",
+      "bytes": 11444,
+      "sha256": "cdfe72a45d4127d52687aab73a432f78f246673ebf3ff0b9d690d33929fc5924"
+    },
+    {
+      "path": "test_results/ministral_14b_4bit/Sample_BOL_3_repeat_1.json",
+      "bytes": 13237,
+      "sha256": "e1cff1a69c550becb7a5db683c03c67f0744af5164eb784035245d370630bfbf"
+    },
+    {
+      "path": "test_results/ministral_web_app_snapshot.json",
+      "bytes": 87155,
+      "sha256": "34e89d2cf029b819ea5aeefebb142ec583759ecfc640d3ce092488e5e5cba49a"
+    }
+  ]
+}

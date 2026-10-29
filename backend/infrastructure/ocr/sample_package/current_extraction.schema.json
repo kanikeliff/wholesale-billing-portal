@@ -1,0 +1,105 @@
+{
+  "type": "object",
+  "properties": {
+    "bol_number": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "contract_number": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "origin": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "supplier": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "carrier": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "transaction_date": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "destination": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "products": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "product_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "net_gallons": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gross_gallons": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "e3_stock_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "product",
+          "product_code",
+          "net_gallons",
+          "gross_gallons",
+          "e3_stock_id"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "bol_number",
+    "contract_number",
+    "origin",
+    "supplier",
+    "carrier",
+    "transaction_date",
+    "destination",
+    "products"
+  ],
+  "additionalProperties": false
+}

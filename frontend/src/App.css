@@ -1,0 +1,145 @@
+
+/* =========================================
+   MIRABITO WHOLESALE BILLING PORTAL
+   Global Application Styles
+========================================= */
+
+/* Main application */
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+}
+
+/* Typography */
+
+h1,
+h2,
+h3,
+h4 {
+  color: var(--ink, #202938);
+  line-height: 1.3;
+}
+
+h1 {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+h2 {
+  font-size: 22px;
+  font-weight: 650;
+}
+
+h3 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+p {
+  line-height: 1.6;
+}
+
+/* Links */
+
+a {
+  color: var(--brand, #b21f36);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Form elements */
+
+input,
+select,
+textarea {
+  max-width: 100%;
+  border-radius: 6px;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+/* Utility classes for new pages */
+
+.mirabito-page {
+  min-height: 100vh;
+  padding: 28px;
+  background: var(--background, #f4f6f9);
+  color: var(--ink, #202938);
+}
+
+.mirabito-card {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--stroke, #e2e6ed);
+  border-radius: 10px;
+  padding: 24px;
+}
+
+.mirabito-muted {
+  color: var(--muted, #667085);
+}
+
+.mirabito-button-primary {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border: 1px solid var(--brand, #b21f36);
+  border-radius: 7px;
+  background: var(--brand, #b21f36);
+  color: #ffffff;
+  font-weight: 600;
+  transition: background 0.2s ease;
+}
+
+.mirabito-button-primary:hover:not(:disabled) {
+  background: var(--brand-hover, #95192d);
+}
+
+.mirabito-button-secondary {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border: 1px solid var(--stroke, #e2e6ed);
+  border-radius: 7px;
+  background: #ffffff;
+  color: var(--ink, #202938);
+  font-weight: 600;
+}
+
+.mirabito-button-secondary:hover:not(:disabled) {
+  background: #f8f9fb;
+}
+
+/* Responsive layout */
+
+@media (max-width: 768px) {
+  .mirabito-page {
+    padding: 16px;
+  }
+
+  .mirabito-card {
+    padding: 16px;
+  }
+
+  h1 {
+    font-size: 24px;
+  }
+
+  h2 {
+    font-size: 20px;
+  }
+}
+
