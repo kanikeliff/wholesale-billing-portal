@@ -40,6 +40,39 @@ class DatabasePersistenceTests(TestCase):
         )
         self.workflow_service = WorkflowService()
 
+
+    def test_billing_record_compensation_delete_cascades_line_items(self):
+        record = BillingRecord.objects.create(
+            bol_number="UPLOAD-COMPENSATION-TEST",
+            status="OCR_COMPLETE",
+        )
+
+        line_item = LineItem.objects.create(
+            billing_record=record,
+            line_number=1,
+            product="87 Gas",
+            gross_gallons=Decimal("7000.00"),
+            net_gallons=Decimal("6965.00"),
+        )
+
+        deleted = self.billing_repository.delete_billing_record(
+            record.record_id
+        )
+
+        self.assertTrue(deleted)
+
+        self.assertFalse(
+            BillingRecord.objects.filter(
+                record_id=record.record_id,
+            ).exists()
+        )
+
+        self.assertFalse(
+            LineItem.objects.filter(
+                line_item_id=line_item.line_item_id,
+            ).exists()
+        )
+
     def test_recommendation_revisions_keep_one_current_revision(self):
         record = BillingRecord.objects.create(
             bol_number="REC-TEST",

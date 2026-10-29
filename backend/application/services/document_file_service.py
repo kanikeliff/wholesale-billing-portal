@@ -4,6 +4,7 @@ from pathlib import Path
 
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.db import transaction
 
 from apps.billing.models import BillingRecord
 from apps.persistence.models import Document
@@ -43,20 +44,23 @@ class DocumentFileService:
         ).hexdigest()
 
         try:
-            document = Document.objects.create(
-                document_id=uuid.UUID(str(document_id)),
-                billing_record=billing_record,
-                original_filename=original_filename,
-                storage_path=saved_path,
-                mime_type=mime_type,
-                file_size_bytes=len(file_bytes),
-                checksum_sha256=checksum_sha256,
-            )
+            with transaction.atomic():
+                document = Document.objects.create(
+                    document_id=uuid.UUID(str(document_id)),
+                    billing_record=billing_record,
+                    original_filename=original_filename,
+                    storage_path=saved_path,
+                    mime_type=mime_type,
+                    file_size_bytes=len(file_bytes),
+                    checksum_sha256=checksum_sha256,
+                )
+
+                serialized = self.serialize(document)
         except Exception:
             default_storage.delete(saved_path)
             raise
 
-        return self.serialize(document)
+        return serialized
 
     def get_latest_for_record(self, record_id):
         return (

@@ -94,17 +94,37 @@ class BOLUploadService:
         document = None
 
         if self.document_file_service is not None:
-            document = self.document_file_service.store_uploaded_document(
-                record_id=persisted["recordId"],
-                document_id=document_id,
-                original_filename=uploaded_file.name,
-                file_bytes=file_bytes,
-                mime_type=getattr(
-                    uploaded_file,
-                    "content_type",
-                    None,
-                ),
-            )
+            try:
+                document = (
+                    self.document_file_service
+                    .store_uploaded_document(
+                        record_id=persisted["recordId"],
+                        document_id=document_id,
+                        original_filename=uploaded_file.name,
+                        file_bytes=file_bytes,
+                        mime_type=getattr(
+                            uploaded_file,
+                            "content_type",
+                            None,
+                        ),
+                    )
+                )
+            except Exception as storage_error:
+                try:
+                    (
+                        self.ocr_processing_service
+                        .rollback_persisted_record(
+                            persisted["recordId"]
+                        )
+                    )
+                except Exception as rollback_error:
+                    if hasattr(storage_error, "add_note"):
+                        storage_error.add_note(
+                            "Billing-record rollback also failed: "
+                            f"{rollback_error}"
+                        )
+
+                raise
 
         return {
             "recordId": persisted["recordId"],

@@ -50,6 +50,12 @@ class OCRProcessingService:
             "canonical": canonical,
         }
 
+
+    def rollback_persisted_record(self, record_id):
+        return self.billing_record_repository.delete_billing_record(
+            record_id
+        )
+
     def _determine_status(self, canonical):
         required_fields = (
             "bolNumber",

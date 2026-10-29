@@ -16,6 +16,23 @@ class BillingRecordRepository(ABC):
         """
         raise NotImplementedError
 
+
+    @abstractmethod
+    def delete_billing_record(self, record_id):
+        """
+        Delete a billing record and its related persisted data.
+
+        This is used as a compensation operation when an upload
+        fails after the billing record has already been persisted.
+
+        Args:
+            record_id: UUID of the billing record.
+
+        Returns:
+            True when a record was deleted, otherwise False.
+        """
+        raise NotImplementedError
+
     @abstractmethod
     def get_billing_record(self, record_id):
         """

@@ -168,3 +168,114 @@ class BOLUploadServiceTests(TestCase):
             result["recordId"],
             "record-789",
         )
+
+
+    def test_document_storage_failure_rolls_back_persisted_record(self):
+        uploaded_file = SimpleUploadedFile(
+            "rollback.pdf",
+            b"%PDF-1.4 rollback test content",
+            content_type="application/pdf",
+        )
+
+        self.ocr_client.submit_document.return_value = {
+            "extraction": {
+                "bol_number": "BOL-ROLLBACK",
+                "origin": "Albany",
+                "transaction_date": "2026-10-29",
+                "products": [],
+            }
+        }
+
+        self.ocr_processing_service.persist_extraction.return_value = {
+            "recordId": "record-rollback",
+            "status": "OCR_COMPLETE",
+        }
+
+        document_file_service = Mock()
+        document_file_service.store_uploaded_document.side_effect = (
+            RuntimeError("document storage failed")
+        )
+
+        service = BOLUploadService(
+            ocr_client=self.ocr_client,
+            ocr_processing_service=self.ocr_processing_service,
+            document_file_service=document_file_service,
+        )
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "document storage failed",
+        ):
+            service.upload(uploaded_file)
+
+        (
+            self.ocr_processing_service
+            .rollback_persisted_record
+            .assert_called_once_with(
+                "record-rollback"
+            )
+        )
+
+
+    def test_rollback_failure_does_not_mask_document_storage_error(self):
+        uploaded_file = SimpleUploadedFile(
+            "rollback-mask.pdf",
+            b"%PDF-1.4 rollback masking test",
+            content_type="application/pdf",
+        )
+
+        self.ocr_client.submit_document.return_value = {
+            "extraction": {
+                "bol_number": "BOL-ROLLBACK-MASK",
+                "origin": "Albany",
+                "transaction_date": "2026-10-29",
+                "products": [],
+            }
+        }
+
+        self.ocr_processing_service.persist_extraction.return_value = {
+            "recordId": "record-rollback-mask",
+            "status": "OCR_COMPLETE",
+        }
+
+        self.ocr_processing_service.rollback_persisted_record.side_effect = (
+            RuntimeError("rollback failed")
+        )
+
+        document_file_service = Mock()
+        document_file_service.store_uploaded_document.side_effect = (
+            RuntimeError("document storage failed")
+        )
+
+        service = BOLUploadService(
+            ocr_client=self.ocr_client,
+            ocr_processing_service=self.ocr_processing_service,
+            document_file_service=document_file_service,
+        )
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "document storage failed",
+        ) as error_context:
+            service.upload(uploaded_file)
+
+        (
+            self.ocr_processing_service
+            .rollback_persisted_record
+            .assert_called_once_with(
+                "record-rollback-mask"
+            )
+        )
+
+        notes = getattr(
+            error_context.exception,
+            "__notes__",
+            [],
+        )
+
+        self.assertTrue(
+            any(
+                "rollback also failed" in note
+                for note in notes
+            )
+        )

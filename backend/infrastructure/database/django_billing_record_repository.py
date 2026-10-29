@@ -76,6 +76,21 @@ class DjangoBillingRecordRepository(BillingRecordRepository):
         if updated == 0:
             raise ValueError("Billing record not found.")
 
+
+    @transaction.atomic
+    def delete_billing_record(self, record_id):
+        try:
+            record = (
+                BillingRecord.objects
+                .select_for_update()
+                .get(record_id=record_id)
+            )
+        except (BillingRecord.DoesNotExist, ValueError):
+            return False
+
+        record.delete()
+        return True
+
     @transaction.atomic
     def apply_record_field_correction(
         self,
