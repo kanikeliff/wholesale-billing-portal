@@ -99,6 +99,75 @@ class DatabasePersistenceTests(TestCase):
             1,
         )
 
+
+    def test_recommendation_persistence_rolls_back_when_status_update_fails(self):
+        record = BillingRecord.objects.create(
+            bol_number="REC-ROLLBACK-TEST",
+            status="RECOMMENDATION_PENDING",
+        )
+
+        first = self.recommendation_repository.store_revision(
+            record.record_id,
+            {
+                "recordId": str(record.record_id),
+                "recommendation": "REVIEW_REQUIRED",
+                "confidence": 0.70,
+                "modelVersion": "rollback-v1",
+                "rationale": "Initial recommendation.",
+                "mappedEntities": {},
+                "exceptionIndicators": [],
+            },
+        )
+
+        with patch(
+            "infrastructure.database."
+            "django_persistence_recommendation_repository."
+            "BillingRecord.save",
+            side_effect=RuntimeError("status write failed"),
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "status write failed",
+            ):
+                self.recommendation_repository.store_revision_and_mark_ready(
+                    record.record_id,
+                    {
+                        "recordId": str(record.record_id),
+                        "recommendation": "APPROVE_RECOMMENDED",
+                        "confidence": 0.95,
+                        "modelVersion": "rollback-v2",
+                        "rationale": "This revision must roll back.",
+                        "mappedEntities": {},
+                        "exceptionIndicators": [],
+                    },
+                )
+
+        record.refresh_from_db()
+        first.refresh_from_db()
+
+        self.assertEqual(
+            record.status,
+            "RECOMMENDATION_PENDING",
+        )
+        self.assertTrue(first.is_current)
+
+        self.assertEqual(
+            Recommendation.objects.filter(
+                billing_record=record,
+            ).count(),
+            1,
+        )
+
+        current = self.recommendation_repository.get_current(
+            record.record_id
+        )
+
+        self.assertEqual(
+            current.recommendation_id,
+            first.recommendation_id,
+        )
+        self.assertEqual(first.revision, 1)
+
     def test_correction_service_updates_canonical_value_and_writes_audit(self):
         record = BillingRecord.objects.create(
             bol_number="CORRECTION-TEST",
