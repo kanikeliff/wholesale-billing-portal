@@ -1,0 +1,18 @@
+{
+  "bol_number": "0000813492",
+  "contract_number": null,
+  "origin": "280 WATERFRONT STREET NEW HAVEN, CT 06512",
+  "supplier": "0000001400 VALERO MARKETING & SUPPLY",
+  "carrier": "JP NOONAN",
+  "transaction_date": "09/18/2026",
+  "destination": "VARIOUS CT",
+  "products": [
+    {
+      "product": "ULTRA LSD 2 15 PPM",
+      "product_code": "GNG003",
+      "net_gallons": "6939",
+      "gross_gallons": "7000",
+      "e3_stock_id": null
+    }
+  ]
+}

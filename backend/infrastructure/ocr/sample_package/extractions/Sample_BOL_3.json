@@ -1,0 +1,25 @@
+{
+  "bol_number": "00000831062",
+  "contract_number": null,
+  "origin": "ETP SYRACUSE - 34015\n2951 Energy Dr\nWarners NY 13164",
+  "supplier": "MONROE ENERGY LLC",
+  "carrier": "MIRABITO ENERGY PRODUCTS",
+  "transaction_date": "2026-09-17",
+  "destination": "CONTRACT VARIOUS NY",
+  "products": [
+    {
+      "product": "Gasoline 3, PG II, ERG#128, 1 T/T",
+      "product_code": "403100",
+      "net_gallons": "7473",
+      "gross_gallons": "7500",
+      "e3_stock_id": null
+    },
+    {
+      "product": "Gasoline 3, PG II, ERG#128, 1 T/T",
+      "product_code": "403400",
+      "net_gallons": "990",
+      "gross_gallons": "1000",
+      "e3_stock_id": null
+    }
+  ]
+}

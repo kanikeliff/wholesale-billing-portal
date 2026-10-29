@@ -2,7 +2,7 @@ from application.services.document_file_service import DocumentFileService
 from application.services.bol_upload_service import BOLUploadService
 from application.services.ocr_processing_service import OCRProcessingService
 from infrastructure.ocr.bol_lab_adapter import BolLabAdapter
-from infrastructure.ocr.mock_ocr_client import MockOCRClient
+from infrastructure.ocr.sample_package_ocr_client import SamplePackageOCRClient
 
 from application.services.correction_service import CorrectionService
 from application.services.human_decision_service import HumanDecisionService
@@ -37,7 +37,7 @@ def wire_database_persistence():
     import presentation.api.upload_views as upload_views
 
     upload_views.BillingRecordUploadView.upload_service = BOLUploadService(
-        ocr_client=MockOCRClient(),
+        ocr_client=SamplePackageOCRClient(),
         ocr_processing_service=OCRProcessingService(
             adapter=BolLabAdapter(),
             billing_record_repository=billing_record_repository,
