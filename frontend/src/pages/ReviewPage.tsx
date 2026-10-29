@@ -592,31 +592,15 @@ const handleDecision = async (decision: HumanDecision) => {
   }
 
   
-  const bolImageMap: Record<string, string> = {
-    "566836": "/sample-bol-rec-001.png",
-    "2569495": "/sample-bol-rec-002.png",
-    "813492": "/sample-bol-rec-003.png",
-    "867187": "/sample-bol-rec-004.png",
-    "239680": "/sample-bol-rec-005.png",
-    "239681": "/sample-bol-rec-006.png",
-    "1996150": "/sample-bol-rec-007.png",
-    "868375": "/sample-bol-rec-008.png",
-    "831062": "/sample-bol-rec-009.png",
-    "1753617": "/sample-bol-rec-010.png",
-  };
-  
-  const bolNumber = String(
-    record.fields?.bolNumber?.normalizedValue ?? ""
-  );
-  
-  const documentUrl =
-    record.document?.fileUrl ||
-    bolImageMap[bolNumber] ||
-    "";
-  
+  const backendBaseUrl = "http://127.0.0.1:8000";
+
+  const documentUrl = record.document?.documentUrl
+    ? `${backendBaseUrl}${record.document.documentUrl}`
+    : "";
+
   const documentFileName =
-    record.document?.fileName ||
-    (documentUrl ? documentUrl.split("/").pop() ?? "Original BOL" : "Original BOL unavailable");
+    record.document?.originalFilename ||
+    "Original BOL unavailable";
 
 
  

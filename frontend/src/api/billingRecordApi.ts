@@ -16,9 +16,15 @@ export interface ExtractedField<T = string | number | null> {
 }
 
 export interface BillingDocument {
-  id: string;
-  fileName: string;
-  fileUrl: string;
+  documentId: string;
+  recordId: string;
+  originalFilename: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  checksumSha256: string;
+  storagePath: string;
+  documentUrl: string;
+  createdAt: string;
 }
 
 export interface LineItem {
@@ -63,7 +69,7 @@ export interface BillingRecord {
   recordId: string;
   status: string;
 
-  // Current PostgreSQL response does not include these.
+  // Record detail may include the persisted source document and recommendation.
   document?: BillingDocument | null;
   recommendation?: Recommendation | null;
 
