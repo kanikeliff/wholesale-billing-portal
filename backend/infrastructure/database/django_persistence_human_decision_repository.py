@@ -47,6 +47,57 @@ class DjangoPersistenceHumanDecisionRepository:
             feedback_status=HumanDecision.FeedbackStatus.PENDING,
         )
 
+
+    @transaction.atomic
+    def store_decision_and_update_status(
+        self,
+        *,
+        record_id,
+        decision,
+        previous_status,
+        resulting_status,
+        decided_by=None,
+        reason=None,
+    ):
+        try:
+            record = (
+                BillingRecord.objects
+                .select_for_update()
+                .get(record_id=record_id)
+            )
+        except (BillingRecord.DoesNotExist, ValueError):
+            raise ValueError("Billing record not found.")
+
+        current_recommendation = (
+            Recommendation.objects
+            .filter(
+                billing_record=record,
+                is_current=True,
+            )
+            .first()
+        )
+
+        human_decision = HumanDecision.objects.create(
+            billing_record=record,
+            recommendation=current_recommendation,
+            decision=decision,
+            previous_status=previous_status,
+            resulting_status=resulting_status,
+            decided_by=decided_by,
+            reason=reason,
+            feedback_status=HumanDecision.FeedbackStatus.PENDING,
+        )
+
+        record.status = resulting_status
+        record.save(
+            update_fields=[
+                "status",
+                "updated_at",
+            ]
+        )
+
+        return human_decision
+
     def list_history(self, record_id):
         return list(
             HumanDecision.objects

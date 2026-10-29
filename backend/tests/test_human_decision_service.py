@@ -38,6 +38,16 @@ class FakeDecisionRepository:
         self.decisions.append(kwargs)
 
 
+
+class FakeAtomicDecisionRepository:
+
+    def __init__(self):
+        self.atomic_calls = []
+
+    def store_decision_and_update_status(self, **kwargs):
+        self.atomic_calls.append(kwargs)
+
+
 def build_record(status="RECOMMENDATION_READY"):
     return {
         "recordId": "rec_001",
@@ -157,4 +167,37 @@ class HumanDecisionServiceTests(SimpleTestCase):
         self.assertEqual(
             billing_repository.status_updates[0]["status"],
             "APPROVED",
+        )
+
+
+    def test_decision_uses_atomic_persistence_when_available(self):
+        decision_repository = FakeAtomicDecisionRepository()
+        billing_repository = FakeBillingRecordRepository()
+
+        service = self.build_service(
+            build_record(),
+            billing_repository=billing_repository,
+            decision_repository=decision_repository,
+        )
+
+        service.submit_decision(
+            "rec_001",
+            "APPROVE",
+            decided_by="user_001",
+            reason="Reviewed and verified.",
+        )
+
+        self.assertEqual(
+            len(decision_repository.atomic_calls),
+            1,
+        )
+
+        self.assertEqual(
+            decision_repository.atomic_calls[0]["resulting_status"],
+            "APPROVED",
+        )
+
+        self.assertEqual(
+            billing_repository.status_updates,
+            [],
         )

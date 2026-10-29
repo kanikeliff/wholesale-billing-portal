@@ -325,6 +325,45 @@ class DatabasePersistenceTests(TestCase):
             ).exists()
         )
 
+
+    def test_human_decision_rolls_back_when_status_update_fails(self):
+        record = BillingRecord.objects.create(
+            bol_number="DECISION-ROLLBACK-TEST",
+            status="RECOMMENDATION_READY",
+        )
+
+        with patch(
+            "infrastructure.database."
+            "django_persistence_human_decision_repository."
+            "BillingRecord.save",
+            side_effect=RuntimeError("status write failed"),
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "status write failed",
+            ):
+                self.decision_repository.store_decision_and_update_status(
+                    record_id=record.record_id,
+                    decision="APPROVE",
+                    previous_status="RECOMMENDATION_READY",
+                    resulting_status="APPROVED",
+                    decided_by="test-user",
+                    reason="Rollback test.",
+                )
+
+        record.refresh_from_db()
+
+        self.assertEqual(
+            record.status,
+            "RECOMMENDATION_READY",
+        )
+
+        self.assertFalse(
+            HumanDecision.objects.filter(
+                billing_record=record,
+            ).exists()
+        )
+
     def test_human_decision_links_current_recommendation_and_updates_status(
         self,
     ):

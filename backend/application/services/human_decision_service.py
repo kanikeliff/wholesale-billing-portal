@@ -51,17 +51,39 @@ class HumanDecisionService:
             target_status,
         )
 
+        persisted_atomically = False
+
         if self.decision_repository is not None:
-            self.decision_repository.store_decision(
-                record_id=record_id,
-                decision=normalized_decision,
-                previous_status=current_status,
-                resulting_status=target_status,
-                decided_by=decided_by,
-                reason=reason,
+            atomic_method = getattr(
+                self.decision_repository,
+                "store_decision_and_update_status",
+                None,
             )
 
-        if self.billing_record_repository is not None:
+            if atomic_method is not None:
+                atomic_method(
+                    record_id=record_id,
+                    decision=normalized_decision,
+                    previous_status=current_status,
+                    resulting_status=target_status,
+                    decided_by=decided_by,
+                    reason=reason,
+                )
+                persisted_atomically = True
+            else:
+                self.decision_repository.store_decision(
+                    record_id=record_id,
+                    decision=normalized_decision,
+                    previous_status=current_status,
+                    resulting_status=target_status,
+                    decided_by=decided_by,
+                    reason=reason,
+                )
+
+        if (
+            not persisted_atomically
+            and self.billing_record_repository is not None
+        ):
             self.billing_record_repository.update_status(
                 record_id,
                 target_status,
