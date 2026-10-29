@@ -109,9 +109,11 @@ export default function BolPdfViewer({
           }
         >
           <Page
-            pageNumber={pageNumber}
-            width={width}
-          />
+          pageNumber={pageNumber}
+          width={width}
+          renderTextLayer={false}
+          renderAnnotationLayer={false}
+/>
         </Document>
       </div>
     </div>

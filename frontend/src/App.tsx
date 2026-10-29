@@ -1,4 +1,3 @@
-
 import {
   BrowserRouter,
   Navigate,
@@ -6,23 +5,37 @@ import {
   Routes,
 } from "react-router-dom";
 
-import type { ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 
 import DashboardPage from "./pages/DashboardPage";
 import UploadPage from "./pages/UploadPage";
 import ReviewPage from "./pages/ReviewPage";
 import LoginPage from "./pages/LoginPage";
 
-// Protect pages from unauthenticated access.
+import {
+  getCurrentUser,
+  type AuthUser,
+} from "./api/authApi";
+
 function ProtectedRoute({
   children,
+  user,
+  loading,
 }: {
   children: ReactNode;
+  user: AuthUser | null;
+  loading: boolean;
 }) {
-  const isAuthenticated =
-    localStorage.getItem("isAuthenticated") === "true";
+  if (loading) {
+    return <div style={{ padding: 24 }}>Checking session...</div>;
+  }
 
-  if (!isAuthenticated) {
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 
@@ -30,52 +43,79 @@ function ProtectedRoute({
 }
 
 function App() {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const handleAuthenticated = useCallback(
+    (authenticatedUser: AuthUser) => {
+      setUser(authenticatedUser);
+    },
+    []
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    getCurrentUser()
+      .then((result) => {
+        if (active) setUser(result.user);
+      })
+      .catch(() => {
+        if (active) setUser(null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <BrowserRouter>
       <Routes>
-        {/* Default route */}
         <Route
           path="/"
           element={<Navigate to="/dashboard" replace />}
         />
 
-        {/* Login page */}
         <Route
           path="/login"
-          element={<LoginPage />}
+          element={
+            <LoginPage
+              onAuthenticated={handleAuthenticated}
+            />
+          }
         />
 
-        {/* Protected dashboard */}
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute user={user} loading={loading}>
               <DashboardPage />
             </ProtectedRoute>
           }
         />
 
-        {/* Protected BOL upload */}
         <Route
           path="/upload"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute user={user} loading={loading}>
               <UploadPage />
             </ProtectedRoute>
           }
         />
 
-        {/* Protected BOL review */}
         <Route
           path="/records/:id/review"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute user={user} loading={loading}>
               <ReviewPage />
             </ProtectedRoute>
           }
         />
 
-        {/* Unknown routes */}
         <Route
           path="*"
           element={<Navigate to="/dashboard" replace />}

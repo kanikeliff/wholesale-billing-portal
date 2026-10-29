@@ -1,41 +1,69 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  getCurrentUser,
+  loginUser,
+  type AuthUser,
+} from "../api/authApi";
 
-export default function LoginPage() {
+interface LoginPageProps {
+  onAuthenticated: (user: AuthUser) => void;
+}
+
+export default function LoginPage({
+  onAuthenticated,
+}: LoginPageProps) {
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-
-  const DEMO_EMAIL = "cansar2002@gmail.com";
-  const DEMO_PASSWORD = "CanCan02";
+  const [loggingIn, setLoggingIn] = useState(false);
 
   useEffect(() => {
-    const isAuthenticated =
-      localStorage.getItem("isAuthenticated") === "true";
+    let active = true;
 
-    if (isAuthenticated) {
-      navigate("/dashboard", { replace: true });
-    }
-  }, [navigate]);
+    getCurrentUser()
+      .then((result) => {
+        if (!active) return;
 
-  const handleLogin = (event: React.FormEvent<HTMLFormElement>) => {
+        onAuthenticated(result.user);
+        navigate("/dashboard", { replace: true });
+      })
+      .catch(() => {
+        // No active session: remain on the login page.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [navigate, onAuthenticated]);
+
+  const handleLogin = async (
+    event: FormEvent<HTMLFormElement>
+  ) => {
     event.preventDefault();
+    if (loggingIn) return;
 
     setError("");
+    setLoggingIn(true);
 
-    if (
-      email === DEMO_EMAIL &&
-      password === DEMO_PASSWORD
-    ) {
-      localStorage.setItem("isAuthenticated", "true");
+    try {
+      const result = await loginUser(
+        email.trim(),
+        password
+      );
 
-      navigate("/dashboard", {
-        replace: true,
-      });
-    } else {
-      setError("Invalid email or password.");
+      onAuthenticated(result.user);
+      navigate("/dashboard", { replace: true });
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Login failed. Please try again."
+      );
+    } finally {
+      setLoggingIn(false);
     }
   };
 
@@ -71,7 +99,7 @@ export default function LoginPage() {
           }}
         >
           <img
-            src="/mirabito-logo.jpg"
+            src="/mirabito-new-logo.png"
             alt="Mirabito Logo"
             style={{
               width: "280px",
@@ -121,20 +149,20 @@ export default function LoginPage() {
                 fontSize: "16px",
               }}
             >
-              Email
+              Username
             </label>
 
             <input
               id="email"
-              type="email"
+              type="text"
               value={email}
               onChange={(event) => {
                 setEmail(event.target.value);
                 setError("");
               }}
-              placeholder="Enter your email"
+              placeholder="Enter your username"
               required
-              autoComplete="email"
+              autoComplete="username"
               style={{
                 width: "100%",
                 padding: "12px",
@@ -206,22 +234,23 @@ export default function LoginPage() {
               {error}
             </div>
           )}
-
           <button
-            type="submit"
-            style={{
-              width: "100%",
-              padding: "13px",
-              cursor: "pointer",
-              backgroundColor: "#222222",
-              color: "#ffffff",
-              border: "none",
-              borderRadius: "6px",
-              fontSize: "17px",
-            }}
+          type="submit"
+          disabled={loggingIn}
+          style={{
+          width: "100%",
+          padding: "13px",
+          cursor: loggingIn ? "wait" : "pointer",
+          backgroundColor: "#222222",
+          color: "#ffffff",
+          border: "none",
+          borderRadius: "6px",
+          fontSize: "17px",
+          }}
           >
-            Login
+          {loggingIn ? "Signing in..." : "Login"}
           </button>
+
         </form>
 
         <p
@@ -233,7 +262,7 @@ export default function LoginPage() {
             textAlign: "center",
           }}
         >
-          Demo authentication for frontend development.
+          Secure sign-in using your Mirabito development account.
         </p>
       </div>
     </div>

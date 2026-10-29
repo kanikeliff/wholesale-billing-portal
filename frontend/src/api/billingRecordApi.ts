@@ -19,6 +19,8 @@ export interface BillingDocument {
   id: string;
   fileName: string;
   fileUrl: string;
+  documentUrl?: string | null;
+  originalFilename?: string | null;
 }
 
 export interface LineItem {
