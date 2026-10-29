@@ -17,7 +17,7 @@ class MockBillingRecordProvider:
             "document": {
                 "id": "doc_001",
                 "fileName": "sample-bol.pdf",
-                "fileUrl": "/media/sample-bol.pdf"
+                "fileUrl": "/media/mock/sample-bol.pdf"
             },
 
             "fields": {
