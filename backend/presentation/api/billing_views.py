@@ -22,11 +22,11 @@ from infrastructure.team_a.provider_factory import (
 from infrastructure.database.django_billing_record_repository import (
     DjangoBillingRecordRepository,
 )
-
+from application.services.document_file_service import DocumentFileService
 # -------------------------------------------------------------------
 # Service composition
 # -------------------------------------------------------------------
-
+document_file_service = DocumentFileService()
 use_mock_provider = (
     os.getenv(
         "USE_MOCK_BILLING_PROVIDER",
@@ -120,6 +120,16 @@ class BillingRecordDetailView(APIView):
         try:
             record = billing_record_service.get_record(record_id)
 
+            document = document_file_service.get_latest_for_record(
+                record_id
+            )
+
+            record["document"] = (
+                document_file_service.serialize(document)
+                if document
+                else None
+            )
+
             return Response(
                 record,
                 status=status.HTTP_200_OK,
@@ -133,7 +143,6 @@ class BillingRecordDetailView(APIView):
                 },
                 status=status.HTTP_404_NOT_FOUND,
             )
-
 
 # -------------------------------------------------------------------
 # Billing validation

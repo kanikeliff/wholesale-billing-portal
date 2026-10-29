@@ -11,38 +11,66 @@ from presentation.api.billing_views import (
     BillingRecordListView,
 )
 
-
 from presentation.api.upload_views import (
     BillingRecordUploadView,
 )
 
+from presentation.api.auth_views import (
+    CsrfView,
+    LoginView,
+    LogoutView,
+    CurrentUserView,
+)
+
 urlpatterns = [
+    path(
+        "auth/csrf/",
+        CsrfView.as_view(),
+        name="auth-csrf",
+    ),
+    path(
+        "auth/login/",
+        LoginView.as_view(),
+        name="auth-login",
+    ),
+     path(
+        "auth/logout/",
+        LogoutView.as_view(),
+        name="auth-logout",
+    ),
+
+    path(
+        "auth/me/",
+        CurrentUserView.as_view(),
+        name="auth-me",
+    ),
     path(
         "billing-records/upload/",
         BillingRecordUploadView.as_view(),
         name="billing-record-upload",
     ),
-
     path(
-    "billing-records/",
-    BillingRecordListView.as_view(),
-    name="billing-record-list",
-    ),
-    path(
-    "billing-records/<str:record_id>/decision/",
-    BillingRecordDecisionView.as_view(),
-    name="billing-record-decision",
-    ),
-    path(
-    "billing-records/<str:record_id>/fields/<str:field_name>/",
-    BillingRecordFieldCorrectionView.as_view(),
-    name="billing-record-field-correction",
+        "billing-records/",
+        BillingRecordListView.as_view(),
+        name="billing-record-list",
     ),
 
     path(
-    "billing-records/<str:record_id>/line-items/<str:line_item_id>/<str:field_name>/",
-    BillingRecordLineItemCorrectionView.as_view(),
-    name="billing-record-line-item-correction",
+        "billing-records/<str:record_id>/decision/",
+        BillingRecordDecisionView.as_view(),
+        name="billing-record-decision",
+    ),
+    
+    path(
+        "billing-records/<str:record_id>/fields/<str:field_name>/",
+        BillingRecordFieldCorrectionView.as_view(),
+        name="billing-record-field-correction",
+    ),
+
+    path(
+        "billing-records/<str:record_id>/line-items/<str:line_item_id>/<str:field_name>/",
+        BillingRecordLineItemCorrectionView.as_view(),
+        name="billing-record-line-item-correction",
     ),
 
     path(
