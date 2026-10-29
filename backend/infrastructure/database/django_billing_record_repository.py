@@ -1,6 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from apps.billing.models import BillingRecord, LineItem
@@ -51,7 +52,7 @@ class DjangoBillingRecordRepository(BillingRecordRepository):
     def get_by_id(self, record_id):
         try:
             record = self.get_billing_record(record_id)
-        except (BillingRecord.DoesNotExist, ValueError):
+        except (BillingRecord.DoesNotExist, ValueError, ValidationError):
             return None
 
         return self._to_dict(record)
@@ -85,7 +86,7 @@ class DjangoBillingRecordRepository(BillingRecordRepository):
                 .select_for_update()
                 .get(record_id=record_id)
             )
-        except (BillingRecord.DoesNotExist, ValueError):
+        except (BillingRecord.DoesNotExist, ValueError, ValidationError):
             return False
 
         record.delete()
@@ -112,7 +113,7 @@ class DjangoBillingRecordRepository(BillingRecordRepository):
             record = BillingRecord.objects.select_for_update().get(
                 record_id=record_id
             )
-        except (BillingRecord.DoesNotExist, ValueError):
+        except (BillingRecord.DoesNotExist, ValueError, ValidationError):
             raise ValueError("Billing record not found.")
 
         value = new_value

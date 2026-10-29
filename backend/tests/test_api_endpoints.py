@@ -1,3 +1,6 @@
+from unittest.mock import patch
+
+from django.contrib.auth.models import User
 from django.test import SimpleTestCase
 from rest_framework.test import APIClient
 
@@ -7,7 +10,20 @@ class BillingRecordApiTests(SimpleTestCase):
     def setUp(self):
         self.client = APIClient()
 
-    def test_get_billing_record(self):
+    @patch(
+        "presentation.api.billing_views."
+        "document_file_service.get_latest_for_record",
+        return_value=None,
+    )
+    @patch(
+        "presentation.api.billing_views."
+        "billing_record_service.get_record"
+    )
+    def test_get_billing_record(self, mock_get, mock_document):
+        mock_get.return_value = {
+            "recordId": "rec_001",
+            "status": "OCR_COMPLETE",
+        }
         response = self.client.get(
             "/api/v1/billing-records/rec_001/"
         )
@@ -18,7 +34,20 @@ class BillingRecordApiTests(SimpleTestCase):
             "rec_001",
         )
 
-    def test_validate_billing_record(self):
+    @patch(
+        "presentation.api.billing_views."
+        "billing_validation_service.validate_record"
+    )
+    def test_validate_billing_record(self, mock_validate):
+        mock_validate.return_value = {
+            "recordId": "rec_001",
+            "valid": True,
+            "nextStatus": "NEEDS_REVIEW",
+            "reviewFlags": [
+                {"code": "LOW_CONFIDENCE"},
+                {"code": "MISSING_FIELD"},
+            ],
+        }
         response = self.client.post(
             "/api/v1/billing-records/rec_001/validate/",
             {},
@@ -74,7 +103,19 @@ class BillingRecordRecommendationApiTests(SimpleTestCase):
     def setUp(self):
         self.client = APIClient()
 
-    def test_evaluate_billing_record_returns_200(self):
+    @patch(
+        "presentation.api.billing_views."
+        "recommendation_service.evaluate_record_by_id"
+    )
+    def test_evaluate_billing_record_returns_200(self, mock_evaluate):
+        mock_evaluate.return_value = {
+            "recordId": "rec_001",
+            "status": "RECOMMENDATION_READY",
+            "pending": False,
+            "recommendation": {
+                "recommendation": "REVIEW_REQUIRED",
+            },
+        }
         response = self.client.post(
             "/api/v1/billing-records/rec_001/evaluate/",
             format="json",
@@ -187,6 +228,9 @@ class BillingRecordCorrectionApiTests(SimpleTestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.client.force_authenticate(
+            user=User(username="test-reviewer")
+        )
 
     @patch(
         "presentation.api.billing_views."
@@ -343,6 +387,9 @@ class BillingRecordDecisionApiTests(SimpleTestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.client.force_authenticate(
+            user=User(username="test-reviewer")
+        )
 
     @patch(
         "presentation.api.billing_views."

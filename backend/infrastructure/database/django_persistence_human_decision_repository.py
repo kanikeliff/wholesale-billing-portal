@@ -2,7 +2,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.billing.models import BillingRecord
-from apps.persistence.models import HumanDecision, Recommendation
+from apps.persistence.models import AuditEvent, HumanDecision, Recommendation
 
 
 class DjangoPersistenceHumanDecisionRepository:
@@ -94,6 +94,26 @@ class DjangoPersistenceHumanDecisionRepository:
                 "status",
                 "updated_at",
             ]
+        )
+
+        AuditEvent.objects.create(
+            billing_record=record,
+            event_type="HUMAN_DECISION",
+            field_name="status",
+            old_value=previous_status,
+            new_value=resulting_status,
+            actor_id=decided_by,
+            metadata={
+                "decision": decision,
+                "reason": reason,
+                "humanDecisionId": str(
+                    human_decision.human_decision_id
+                ),
+                "recommendationId": (
+                    str(current_recommendation.recommendation_id)
+                    if current_recommendation else None
+                ),
+            },
         )
 
         return human_decision
