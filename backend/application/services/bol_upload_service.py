@@ -43,6 +43,7 @@ class BOLUploadService:
         ocr_client,
         ocr_processing_service,
         document_file_service=None,
+        ocr_field_persistence_service=None,
         max_file_size_bytes=20 * 1024 * 1024,
         poll_interval_seconds=1,
         poll_timeout_seconds=30,
@@ -50,6 +51,7 @@ class BOLUploadService:
         self.ocr_client = ocr_client
         self.ocr_processing_service = ocr_processing_service
         self.document_file_service = document_file_service
+        self.ocr_field_persistence_service = ocr_field_persistence_service
         self.max_file_size_bytes = max_file_size_bytes
         self.poll_interval_seconds = poll_interval_seconds
         self.poll_timeout_seconds = poll_timeout_seconds
@@ -123,6 +125,40 @@ class BOLUploadService:
                             "Billing-record rollback also failed: "
                             f"{rollback_error}"
                         )
+
+                raise
+
+
+        if (
+            self.ocr_field_persistence_service is not None
+            and document is not None
+        ):
+            try:
+                self.ocr_field_persistence_service.persist(
+                    record_id=persisted["recordId"],
+                    document_id=document["documentId"],
+                    canonical=persisted["canonical"],
+                )
+            except Exception:
+                from django.core.files.storage import default_storage
+                from apps.persistence.models import Document
+
+                stored = Document.objects.filter(
+                    document_id=document["documentId"],
+                    billing_record_id=persisted["recordId"],
+                ).first()
+
+                storage_path = (
+                    stored.storage_path if stored is not None else None
+                )
+
+                try:
+                    self.ocr_processing_service.rollback_persisted_record(
+                        persisted["recordId"]
+                    )
+                finally:
+                    if storage_path:
+                        default_storage.delete(storage_path)
 
                 raise
 

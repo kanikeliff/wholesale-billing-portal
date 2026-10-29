@@ -1,3 +1,4 @@
+from application.services.ocr_field_persistence_service import OCRFieldPersistenceService
 from application.services.document_file_service import DocumentFileService
 from application.services.bol_upload_service import BOLUploadService
 from application.services.ocr_processing_service import OCRProcessingService
@@ -33,7 +34,7 @@ def wire_database_persistence():
 
 
     # Development upload pipeline:
-    # Browser -> Django -> Mock OCR -> normalization -> PostgreSQL
+    # Browser -> Django -> saved Ministral OCR -> normalization -> PostgreSQL
     import presentation.api.upload_views as upload_views
 
     upload_views.BillingRecordUploadView.upload_service = BOLUploadService(
@@ -43,6 +44,7 @@ def wire_database_persistence():
             billing_record_repository=billing_record_repository,
         ),
         document_file_service=DocumentFileService(),
+        ocr_field_persistence_service=OCRFieldPersistenceService(),
     )
 
     recommendation_provider = (

@@ -5,6 +5,12 @@ from infrastructure.team_a.recommendation_provider import (
 
 class MockTeamAAdapter(RecommendationProvider):
 
+    @staticmethod
+    def _value(field):
+        if isinstance(field, dict):
+            return field.get("normalizedValue")
+        return field
+
     def evaluate(self, record):
         record_id = str(
             record.get("recordId")
@@ -12,29 +18,62 @@ class MockTeamAAdapter(RecommendationProvider):
             or "mock-record"
         )
 
+        fields = record.get("fields") or {}
+        line_items = record.get("lineItems") or []
+
+        exceptions = []
+        mapped_lines = []
+
+        contract = self._value(
+            fields.get("contractLifting")
+        )
+
+        if not contract:
+            exceptions.append({
+                "code": "MISSING_CONTRACT_LIFTING",
+                "severity": "WARNING",
+                "message": "Contract/Lifting is missing.",
+                "field": "contractLifting",
+            })
+
+        for item in line_items:
+            line_id = item.get("lineItemId")
+            e3 = self._value(item.get("e3StockId"))
+
+            mapped_lines.append({
+                "lineItemId": line_id,
+                "e3StockId": e3,
+            })
+
+            if not e3:
+                exceptions.append({
+                    "code": "MISSING_E3_STOCK_ID",
+                    "severity": "WARNING",
+                    "message": (
+                        "E3 Stock ID is missing. "
+                        "Entity resolution is required."
+                    ),
+                    "field": "e3StockId",
+                    "lineItemId": line_id,
+                })
+
         return {
             "recordId": record_id,
-            "recommendation": "APPROVE_RECOMMENDED",
-            "confidence": 0.94,
-            "modelVersion": "mock-v1",
-            "matchedTerminalLogId": "TERM-001",
+            "recommendation": "REVIEW_REQUIRED",
+            "confidence": 0.0,
+            "modelVersion": "mock-contract-v2",
+            "matchedTerminalLogId": None,
             "rationale": (
-                "Carrier and product values matched "
-                "the available reference data."
+                "Contract simulation only. "
+                "No real terminal matching, entity resolution, "
+                "or decision confidence was calculated. "
+                "Human review is required."
             ),
             "mappedEntities": {
-                "carrierCode": "MUN",
-                "lineItems": [
-                    {
-                        "lineItemId": 1,
-                        "e3StockId": "UX",
-                        "standardName": "87 Gas",
-                    }
-                ],
+                "lineItems": mapped_lines,
             },
-            "exceptionIndicators": [],
+            "exceptionIndicators": exceptions,
         }
 
 
-# Temporary compatibility alias for older local code.
 MockTeamAdapter = MockTeamAAdapter
