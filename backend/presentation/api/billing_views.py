@@ -22,6 +22,12 @@ from infrastructure.team_a.provider_factory import (
 from infrastructure.database.django_billing_record_repository import (
     DjangoBillingRecordRepository,
 )
+from infrastructure.database.django_audit_correction_repository import (
+    DjangoAuditCorrectionRepository,
+)
+from infrastructure.database.django_persistence_human_decision_repository import (
+    DjangoPersistenceHumanDecisionRepository,
+)
 from application.services.document_file_service import DocumentFileService
 # -------------------------------------------------------------------
 # Service composition
@@ -38,9 +44,13 @@ use_mock_provider = (
 if use_mock_provider:
     billing_record_provider = MockBillingRecordProvider()
     billing_record_repository = None
+    correction_repository = None
+    decision_repository = None
 else:
     billing_record_provider = DjangoBillingRecordRepository()
     billing_record_repository = billing_record_provider
+    correction_repository = DjangoAuditCorrectionRepository()
+    decision_repository = DjangoPersistenceHumanDecisionRepository()
 
 billing_record_service = BillingRecordService(
     billing_record_provider=billing_record_provider
@@ -60,7 +70,7 @@ recommendation_service = RecommendationService(
 
 correction_service = CorrectionService(
     billing_record_provider=billing_record_provider,
-    correction_repository=billing_record_repository,
+    correction_repository=correction_repository,
     billing_record_repository=billing_record_repository,
     workflow_service=WorkflowService(),
 )
@@ -68,6 +78,7 @@ correction_service = CorrectionService(
 human_decision_service = HumanDecisionService(
     billing_record_provider=billing_record_provider,
     billing_record_repository=billing_record_repository,
+    decision_repository=decision_repository,
     workflow_service=WorkflowService(),
 )
 
