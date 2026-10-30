@@ -16,15 +16,18 @@ export interface ExtractedField<T = string | number | null> {
 }
 
 export interface BillingDocument {
-  documentId: string;
-  recordId: string;
-  originalFilename: string;
-  mimeType: string;
-  fileSizeBytes: number;
-  checksumSha256: string;
-  storagePath: string;
-  documentUrl: string;
-  createdAt: string;
+  documentId?: string;
+  recordId?: string;
+  originalFilename?: string | null;
+  mimeType?: string;
+  fileSizeBytes?: number;
+  checksumSha256?: string;
+  storagePath?: string;
+  documentUrl?: string | null;
+  createdAt?: string;
+  id?: string;
+  fileName?: string;
+  fileUrl?: string;
 }
 
 export interface LineItem {

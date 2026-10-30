@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   getBillingRecords,
   type BillingRecordSummary,
 } from "../api/billingRecordApi";
+import { logoutUser } from "../api/authApi";
 
 const theme = {
   background: "#f4f6f9",
@@ -15,7 +16,7 @@ const theme = {
 };
 
 export default function DashboardPage() {
-  const navigate = useNavigate();
+
   const [records, setRecords] = useState<BillingRecordSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -64,9 +65,14 @@ export default function DashboardPage() {
     return matchesSearch && (statusFilter === "ALL" || record.status === statusFilter);
   });
 
-  const handleLogout = () => {
-    localStorage.removeItem("isAuthenticated");
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+      window.location.replace("/login");
+    } catch (error) {
+      console.error("Logout failed:", error);
+      alert("Logout failed. Please try again.");
+    }
   };
 
   const buttonStyle = {

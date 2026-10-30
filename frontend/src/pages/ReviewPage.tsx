@@ -1,8 +1,8 @@
 import "./ReviewPage.css";
-import BolPdfViewer from "../components/BolPdfViewer";
 import { validateBillingRecord } from "../api/validationApi";
 import { evaluateBillingRecord } from "../api/recommendationApi";
 import { useEffect, useMemo, useState } from "react";
+import BolPdfViewer from "../components/BolPdfViewer";
 import { Link, useParams } from "react-router-dom";
 import {
   submitBillingDecision,
@@ -177,18 +177,18 @@ const [evaluationError, setEvaluationError] = useState("");
 
         setRecord(backendRecord);
         setDraft(createDraft(backendRecord));
-       
+
       } catch (backendError) {
         if (!active) return;
-      
+
         console.error(
           "Backend billing record request failed:",
           backendError
         );
-      
+
         setRecord(null);
         setDraft({});
-          
+
         setError(
           backendError instanceof Error
             ? `Could not load this BOL from the backend: ${backendError.message}`
@@ -263,11 +263,11 @@ const formatValidationLabel = (value: string) =>
     if (!record || saving || validating || hasChanges) {
       return;
     }
-  
+
     setValidating(true);
     setValidationError("");
     setValidationResult(null);
-  
+
     try {
       const result = await validateBillingRecord(record.recordId);
       setValidationResult(result);
@@ -435,7 +435,7 @@ const refreshRecommendation = async () => {
     }
   };
 
-   
+
 const allowedDecisions: Record<string, HumanDecision[]> = {
   UPLOADED: ["EXCEPTION"],
   OCR_PROCESSING: ["EXCEPTION"],
@@ -591,19 +591,43 @@ const handleDecision = async (decision: HumanDecision) => {
     );
   }
 
-  
-  const backendBaseUrl = "http://127.0.0.1:8000";
+  // Prefer the real document returned by the backend.
+  // Static sample images are only used for the alpha demo.
+  const bolImageMap: Record<string, string> = {
+    "566836": "/sample-bol-rec-001.png",
+    "2569495": "/sample-bol-rec-002.png",
+    "813492": "/sample-bol-rec-003.png",
+    "867187": "/sample-bol-rec-004.png",
+    "239680": "/sample-bol-rec-005.png",
+    "239681": "/sample-bol-rec-006.png",
+    "1996150": "/sample-bol-rec-007.png",
+    "868375": "/sample-bol-rec-008.png",
+    "831062": "/sample-bol-rec-009.png",
+    "1753617": "/sample-bol-rec-010.png",
+  };
 
-  const documentUrl = record.document?.documentUrl
-    ? `${backendBaseUrl}${record.document.documentUrl}`
-    : "";
+  const bolNumber = String(
+    record.fields?.bolNumber?.normalizedValue ?? ""
+  );
+
+  const rawDocumentUrl =
+    record.document?.documentUrl ||
+    record.document?.fileUrl ||
+    bolImageMap[bolNumber] ||
+    "";
+
+  const documentUrl = rawDocumentUrl.startsWith("/media/")
+    ? `http://127.0.0.1:8000${rawDocumentUrl}`
+    : rawDocumentUrl;
 
   const documentFileName =
     record.document?.originalFilename ||
-    "Original BOL unavailable";
+    record.document?.fileName ||
+    (documentUrl
+      ? documentUrl.split("/").pop() ?? "Original BOL"
+      : "Original BOL unavailable");
 
 
- 
 
 
   const isPdf = /\.pdf(?:[?#]|$)/i.test(documentUrl);
@@ -648,7 +672,7 @@ const handleDecision = async (decision: HumanDecision) => {
 
       <div className="review-workspace">
 
-       
+
 {/* LEFT: DOCUMENT QUEUE */}
 
 <aside className="review-panel">
@@ -687,56 +711,112 @@ const handleDecision = async (decision: HumanDecision) => {
   </div>
 </aside>
 
+
 {/* CENTER: ORIGINAL BOL */}
+<section className="review-panel">
+  <div className="review-panel-header">
+    <h2>Original BOL</h2>
+    <p className="review-panel-subtitle">
+      {documentFileName}
+    </p>
+  </div>
+
+  <div className="review-document-container">
+    {documentUrl ? (
+      isPdf ? (
+        <BolPdfViewer fileUrl={documentUrl} />
+      ) : (
+        <img
+          src={documentUrl}
+          alt={`Original BOL ${record.recordId}`}
+          style={{
+            width: "100%",
+            height: "auto",
+            background: "#fff",
+          }}
+        />
+      )
+    ) : (
+      <p>No source document URL is available for this record.</p>
+    )}
+  </div>
+
+  {documentUrl && (
+    <div className="review-document-actions">
+      <a
+        href={documentUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="review-document-link"
+      >
+        Open Original Document ↗
+      </a>
+    </div>
+  )}
+</section>
 
 
-        <section className="review-panel">
-          <div className="review-panel-header">
-            <h2>Original BOL</h2>
-            <p className="review-panel-subtitle">
-            {documentFileName}
-            </p>
-          </div>
 
-          <div className="review-document-container">
-            {documentUrl ? (
-              isPdf ? (
-                <BolPdfViewer fileUrl={documentUrl} />
 
-              ) : (
-                <img
-                  src={documentUrl}
-                  alt={`Original BOL ${record.recordId}`}
-                  style={{
-                    width: "100%",
-                    height: "auto",
-                    background: "#fff",
-                  }}
-                />
-              )
-            ) : (
-              <p>
-                No source document URL is available
-                for this record.
-              </p>
-            )}
-          </div>
 
-          {documentUrl && (
-            <div className="review-document-actions">
-              <a
-                href={documentUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="review-document-link"
-              >
-                Open Original Document ↗
-              </a>
-            </div>
-          )}
-        </section>
 
-        {/* RIGHT: OCR REVIEW */}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ {/* RIGHT: OCR REVIEW */}
 
         <section className="review-panel">
           <div className="review-panel-header">
@@ -808,7 +888,7 @@ const handleDecision = async (decision: HumanDecision) => {
             {/* TEAM A RECOMMENDATION */}
 
             <div className="review-recommendation">
-              <h3>Team A Recommendation</h3>
+              <h3>AI Recommendation</h3>
 
               {recommendation ? (
                 <>
@@ -884,7 +964,7 @@ const handleDecision = async (decision: HumanDecision) => {
                 </>
               ) : (
                 <p className="review-recommendation-note">
-                  No Team A recommendation available yet.
+                  No AI recommendation available yet.
                 </p>
               )}
             </div>
@@ -904,7 +984,7 @@ const handleDecision = async (decision: HumanDecision) => {
                 className="review-btn review-btn-primary"
                 disabled={!hasChanges || saving}
                 onClick={saveChanges}
-                
+
               >
                 {saving ? "Saving..." : "Save Changes"}
               </button>
@@ -1050,7 +1130,7 @@ const handleDecision = async (decision: HumanDecision) => {
         marginBottom: "20px",
       }}
     >
-      <h3 style={{ margin: 0 }}>Team A Recommendation</h3>
+      <h3 style={{ margin: 0 }}>AI Recommendation</h3>
 
       <span
         style={{
@@ -1438,7 +1518,7 @@ const handleDecision = async (decision: HumanDecision) => {
   </div>
 )}
 
-            
+
 
             {hasChanges && (
   <p className="review-recommendation-note">
@@ -1474,4 +1554,4 @@ const handleDecision = async (decision: HumanDecision) => {
       </div>
     </main>
   );
-} 
+}
