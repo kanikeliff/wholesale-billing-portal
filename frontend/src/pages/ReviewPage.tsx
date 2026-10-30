@@ -2,7 +2,7 @@ import "./ReviewPage.css";
 import { validateBillingRecord } from "../api/validationApi";
 import { evaluateBillingRecord } from "../api/recommendationApi";
 import { useEffect, useMemo, useState } from "react";
-import BolPdfViewer from "../components/BolPdfViewer";
+
 import { Link, useParams } from "react-router-dom";
 import {
   submitBillingDecision,
@@ -221,7 +221,7 @@ const evaluation =
   evaluationResult as EvaluationResponse | null;
 
 const teamRecommendation = evaluation?.recommendation ?? null;
-
+const recommendation = record?.recommendation ?? null;
 const evaluationConfidence =
   teamRecommendation?.confidence == null
     ? "Unavailable"
@@ -614,6 +614,9 @@ const handleDecision = async (decision: HumanDecision) => {
   record.document?.fileUrl ||
   bolImageMap[bolNumber] ||
   "";
+  const originalDocumentUrl = documentUrl.startsWith("/media/")
+  ? `http://127.0.0.1:8000${documentUrl}`
+  : documentUrl;
 
 const documentFileName =
   record.document?.originalFilename ||
@@ -627,7 +630,23 @@ const documentFileName =
 
 
   const isPdf = /\.pdf(?:[?#]|$)/i.test(documentUrl);
-  const recommendation = record.recommendation;
+  const pdfFileName = documentUrl.split("?")[0].split("/").pop() ?? "";
+
+  const previewName = pdfFileName.toLowerCase().endsWith(".pdf")
+  ? pdfFileName.slice(0, -4)
+  : pdfFileName;
+
+   const previewUrl = `/bol-previews/${encodeURIComponent(previewName)}-1.png`;
+
+
+
+
+
+
+
+
+
+
 
   return (
     <main className="review-page">
@@ -720,7 +739,21 @@ const documentFileName =
   <div className="review-document-container">
     {documentUrl ? (
       isPdf ? (
-        <BolPdfViewer fileUrl={documentUrl} />
+        <img
+          src={previewUrl}
+          alt={`BOL document preview ${record.recordId}`}
+          style={{
+            width: "100%",
+            maxWidth: "750px",
+            height: "auto",
+            objectFit: "contain",
+            display: "block",
+            margin: "0 auto",
+          }}
+          onError={(event) => {
+            event.currentTarget.style.display = "none";
+          }}
+        />
       ) : (
         <img
           src={documentUrl}
@@ -740,7 +773,7 @@ const documentFileName =
   {documentUrl && (
     <div className="review-document-actions">
       <a
-        href={documentUrl}
+        href={originalDocumentUrl}
         target="_blank"
         rel="noreferrer"
         className="review-document-link"
