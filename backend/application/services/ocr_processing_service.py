@@ -50,6 +50,47 @@ class OCRProcessingService:
             "canonical": canonical,
         }
 
+    def persist_extraction_for_record(self, record_id, extraction):
+        canonical = self.adapter.adapt(extraction)
+
+        fields = canonical["fields"]
+        line_items = canonical["lineItems"]
+
+        def value(field_name):
+            return fields[field_name]["normalizedValue"]
+
+        record_data = {
+            "bol_number": value("bolNumber"),
+            "contract_lifting": value("contractLifting"),
+            "origin": value("origin"),
+            "supplier": value("supplier"),
+            "carrier": value("carrier"),
+            "transaction_date": value("transactionDate"),
+            "destination": value("destination"),
+            "status": self._determine_status(canonical),
+            "line_items": [
+                {
+                    "line_number": item["lineNumber"],
+                    "product": item["product"]["normalizedValue"],
+                    "net_gallons": item["netGallons"]["normalizedValue"],
+                    "gross_gallons": item["grossGallons"]["normalizedValue"],
+                    "e3_stock_id": item["e3StockId"]["normalizedValue"],
+                    "standard_name": None,
+                }
+                for item in line_items
+            ],
+        }
+
+        record = self.billing_record_repository.update_from_ocr(
+            record_id,
+            record_data,
+        )
+
+        return {
+            "recordId": str(record.record_id),
+            "status": record.status,
+            "canonical": canonical,
+        }
 
     def rollback_persisted_record(self, record_id):
         return self.billing_record_repository.delete_billing_record(

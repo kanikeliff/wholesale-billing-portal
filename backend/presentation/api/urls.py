@@ -21,8 +21,14 @@ from presentation.api.auth_views import (
     LogoutView,
     CurrentUserView,
 )
+from presentation.api.ocr_job_views import OCRJobStatusView
 
 urlpatterns = [
+    path(
+        "ocr-jobs/<uuid:job_id>/",
+        OCRJobStatusView.as_view(),
+        name="ocr-job-status",
+    ),
     path(
         "auth/csrf/",
         CsrfView.as_view(),

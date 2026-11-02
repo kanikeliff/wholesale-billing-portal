@@ -1,0 +1,730 @@
+{
+  "schemaVersion": "bol-lab-v1",
+  "documentId": "production-three-stage-live-sample-1",
+  "extraction": {
+    "bol_number": "0000813492",
+    "contract_number": null,
+    "origin": "280 WATERFRONT STREET, NEW HAVEN, CT 06512",
+    "supplier": "VALERO MARKETING & SUPPLY",
+    "carrier": "JP NOONAN",
+    "transaction_date": "09/18/2026",
+    "destination": "VARIOUS CT",
+    "products": [
+      {
+        "product": "ULTRA LSD 2 15 PPM",
+        "product_code": "GNG003",
+        "net_gallons": "6939",
+        "gross_gallons": "7000",
+        "e3_stock_id": null
+      }
+    ]
+  },
+  "fieldConfidence": null,
+  "unresolvedFields": [
+    "/contract_number",
+    "/products/0/e3_stock_id"
+  ],
+  "warnings": [],
+  "evidence": {
+    "rawText": "{\n  \"bol_number\": \"0000813492\",\n  \"contract_number\": null,\n  \"origin\": \"280 WATERFRONT STREET, NEW HAVEN, CT 06512\",\n  \"supplier\": \"VALERO MARKETING & SUPPLY\",\n  \"carrier\": \"JP NOONAN\",\n  \"transaction_date\": \"09/18/2026\",\n  \"destination\": \"VARIOUS CT\",\n  \"products\": [\n    {\n      \"product\": \"ULTRA LSD 2 15 PPM\",\n      \"product_code\": \"GNG003\",\n      \"net_gallons\": \"6939\",\n      \"gross_gallons\": \"7000\",\n      \"e3_stock_id\": null\n    }\n  ]\n}",
+    "responseId": "resp_08fdec6f1d77ee1b016ae665ac167087d2be8fdb84ca28737a",
+    "requestId": "req_3d0e7eac03ef4a6ebc4237c93ddf3de3",
+    "usage": {
+      "input_tokens": 3254,
+      "input_tokens_details": {
+        "cache_write_tokens": 3251,
+        "cached_tokens": 0
+      },
+      "output_tokens": 216,
+      "output_tokens_details": {
+        "reasoning_tokens": 52
+      },
+      "total_tokens": 3470
+    },
+    "responseStatus": "completed"
+  },
+  "metadata": {
+    "provider": "openai",
+    "requestedModel": "gpt-6.1-sol",
+    "responseModel": "gpt-6.1-sol",
+    "promptVersion": "bol-gpt-integration-v1",
+    "promptSha256": "d4487dbea8e48ce0621e718838eab0376a9bc74255c5c209a8ae4c860d69109d",
+    "schemaSha256": "3e0d16ef23056b5fc8a13eb35ec313e4bce78ba20b8eb8a6b79676db83b188c3",
+    "sourceSha256": "9dbf3df5747baaff41c75f5604edb6d781e91bc8aeee4ba6d69d14328559ff7c",
+    "pages": [
+      {
+        "page": 1,
+        "width": 1275,
+        "height": 1651,
+        "dpi": 150,
+        "sha256": "749860e77970a1ff402f58e08ecee3888790b365bee608c5c8d1a3d19018294f"
+      }
+    ],
+    "pageCount": 1,
+    "seconds": 4.2573112500831485,
+    "structuredOutput": "strict-json-schema",
+    "automaticRetries": 0
+  },
+  "confidenceDiagnostics": {
+    "method": "VERDICT-inspired-GPT-only-adaptation",
+    "featureVersion": "gpt-grounding-blind-reread-v1",
+    "candidateSource": "observed-extraction",
+    "pipelineSignature": "4f7ce3d63af3183949b349458ca9196e98720ced909dd6049a2d0c4e0bdc83a2",
+    "cropContext": "row",
+    "familyId": "source-9dbf3df5747baaff41c75f5604edb6d781e91bc8aeee4ba6d69d14328559ff7c",
+    "documentId": "production-three-stage-live-sample-1",
+    "sourceSha256": "9dbf3df5747baaff41c75f5604edb6d781e91bc8aeee4ba6d69d14328559ff7c",
+    "pageCount": 1,
+    "renderedPageSha256": [
+      "749860e77970a1ff402f58e08ecee3888790b365bee608c5c8d1a3d19018294f"
+    ],
+    "primaryResultSha256": "52cd6b148b1ef14feb891834532ba89ea6c142eee22fe9818605f3a649cc0b12",
+    "extractionSha256": "93514844352f0abef58b5bf887ea37075d681c99d387474114708c2da8ffdcf6",
+    "fields": [
+      {
+        "path": "/bol_number",
+        "candidate": "0000813492",
+        "location": {
+          "page": 1,
+          "bbox": [
+            157,
+            26,
+            228,
+            36
+          ]
+        },
+        "blindReading": {
+          "observedValue": "0000813492",
+          "role": "supported",
+          "reason": "Printed beside BILL OF LADING #."
+        },
+        "crop": {
+          "pixelBox": [
+            0,
+            0,
+            1275,
+            109
+          ],
+          "paddingUnits": 30,
+          "context": "row"
+        },
+        "features": {
+          "candidate_null": 0.0,
+          "box_missing": 0.0,
+          "box_area": 0.0007099999999999999,
+          "box_width": 0.071,
+          "box_height": 0.01,
+          "reread_similarity": 1.0,
+          "reread_exact": 1.0,
+          "role_supported": 1.0,
+          "role_ambiguous": 0.0,
+          "crop_unreadable": 0.0,
+          "candidate_length": 10.0
+        },
+        "status": "corroborated_unvalidated",
+        "valueConfidence": null,
+        "evidenceConfidence": null
+      },
+      {
+        "path": "/contract_number",
+        "candidate": null,
+        "location": {
+          "page": null,
+          "bbox": null
+        },
+        "blindReading": null,
+        "crop": null,
+        "features": {
+          "candidate_null": 1.0,
+          "box_missing": 1.0,
+          "box_area": 0.0,
+          "box_width": 0.0,
+          "box_height": 0.0,
+          "reread_similarity": null,
+          "reread_exact": null,
+          "role_supported": null,
+          "role_ambiguous": null,
+          "crop_unreadable": null,
+          "candidate_length": 0.0
+        },
+        "status": "unresolved",
+        "valueConfidence": null,
+        "evidenceConfidence": null
+      },
+      {
+        "path": "/origin",
+        "candidate": "280 WATERFRONT STREET, NEW HAVEN, CT 06512",
+        "location": {
+          "page": 1,
+          "bbox": [
+            99,
+            37,
+            297,
+            56
+          ]
+        },
+        "blindReading": {
+          "observedValue": "280 WATERFRONT STREET, NEW HAVEN, CT 06512",
+          "role": "supported",
+          "reason": "Address explicitly labeled Shipment Origin."
+        },
+        "crop": {
+          "pixelBox": [
+            0,
+            11,
+            1275,
+            142
+          ],
+          "paddingUnits": 30,
+          "context": "row"
+        },
+        "features": {
+          "candidate_null": 0.0,
+          "box_missing": 0.0,
+          "box_area": 0.003762,
+          "box_width": 0.198,
+          "box_height": 0.019,
+          "reread_similarity": 1.0,
+          "reread_exact": 1.0,
+          "role_supported": 1.0,
+          "role_ambiguous": 0.0,
+          "crop_unreadable": 0.0,
+          "candidate_length": 42.0
+        },
+        "status": "corroborated_unvalidated",
+        "valueConfidence": null,
+        "evidenceConfidence": null
+      },
+      {
+        "path": "/supplier",
+        "candidate": "VALERO MARKETING & SUPPLY",
+        "location": {
+          "page": 1,
+          "bbox": [
+            177,
+            57,
+            353,
+            67
+          ]
+        },
+        "blindReading": {
+          "observedValue": "0000001400 VALERO MARKETING & SUPPLY",
+          "role": "supported",
+          "reason": "Printed on the Supplier line."
+        },
+        "crop": {
+          "pixelBox": [
+            0,
+            44,
+            1275,
+            161
+          ],
+          "paddingUnits": 30,
+          "context": "row"
+        },
+        "features": {
+          "candidate_null": 0.0,
+          "box_missing": 0.0,
+          "box_area": 0.0017599999999999998,
+          "box_width": 0.176,
+          "box_height": 0.01,
+          "reread_similarity": 0.819672131147541,
+          "reread_exact": 0.0,
+          "role_supported": 1.0,
+          "role_ambiguous": 0.0,
+          "crop_unreadable": 0.0,
+          "candidate_length": 25.0
+        },
+        "status": "disputed",
+        "valueConfidence": null,
+        "evidenceConfidence": null
+      },
+      {
+        "path": "/carrier",
+        "candidate": "JP NOONAN",
+        "location": {
+          "page": 1,
+          "bbox": [
+            482,
+            107,
+            546,
+            117
+          ]
+        },
+        "blindReading": {
+          "observedValue": "JP NOONAN",
+          "role": "supported",
+          "reason": "Printed beside Carrier Name."
+        },
+        "crop": {
+          "pixelBox": [
+            0,
+            127,
+            1275,
+            243
+          ],
+          "paddingUnits": 30,
+          "context": "row"
+        },
+        "features": {
+          "candidate_null": 0.0,
+          "box_missing": 0.0,
+          "box_area": 0.00064,
+          "box_width": 0.064,
+          "box_height": 0.01,
+          "reread_similarity": 1.0,
+          "reread_exact": 1.0,
+          "role_supported": 1.0,
+          "role_ambiguous": 0.0,
+          "crop_unreadable": 0.0,
+          "candidate_length": 9.0
+        },
+        "status": "corroborated_unvalidated",
+        "valueConfidence": null,
+        "evidenceConfidence": null
+      },
+      {
+        "path": "/transaction_date",
+        "candidate": "09/18/2026",
+        "location": {
+          "page": 1,
+          "bbox": [
+            502,
+            66,
+            572,
+            76
+          ]
+        },
+        "blindReading": {
+          "observedValue": "09/18/2026",
+          "role": "supported",
+          "reason": "Gate entry, load start, and load end dates all show this date."
+        },
+        "crop": {
+          "pixelBox": [
+            0,
+            59,
+            1275,
+            176
+          ],
+          "paddingUnits": 30,
+          "context": "row"
+        },
+        "features": {
+          "candidate_null": 0.0,
+          "box_missing": 0.0,
+          "box_area": 0.0007000000000000001,
+          "box_width": 0.07,
+          "box_height": 0.01,
+          "reread_similarity": 1.0,
+          "reread_exact": 1.0,
+          "role_supported": 1.0,
+          "role_ambiguous": 0.0,
+          "crop_unreadable": 0.0,
+          "candidate_length": 10.0
+        },
+        "status": "corroborated_unvalidated",
+        "valueConfidence": null,
+        "evidenceConfidence": null
+      },
+      {
+        "path": "/destination",
+        "candidate": "VARIOUS CT",
+        "location": {
+          "page": 1,
+          "bbox": [
+            91,
+            98,
+            165,
+            108
+          ]
+        },
+        "blindReading": {
+          "observedValue": "VARIOUS CT",
+          "role": "ambiguous",
+          "reason": "Destination line is blank; VARIOUS CT appears on the following Address line."
+        },
+        "crop": {
+          "pixelBox": [
+            0,
+            112,
+            1275,
+            228
+          ],
+          "paddingUnits": 30,
+          "context": "row"
+        },
+        "features": {
+          "candidate_null": 0.0,
+          "box_missing": 0.0,
+          "box_area": 0.00074,
+          "box_width": 0.074,
+          "box_height": 0.01,
+          "reread_similarity": 1.0,
+          "reread_exact": 1.0,
+          "role_supported": 0.0,
+          "role_ambiguous": 1.0,
+          "crop_unreadable": 0.0,
+          "candidate_length": 10.0
+        },
+        "status": "review_required",
+        "valueConfidence": null,
+        "evidenceConfidence": null
+      },
+      {
+        "path": "/products/0/product",
+        "candidate": "ULTRA LSD 2 15 PPM",
+        "location": {
+          "page": 1,
+          "bbox": [
+            71,
+            179,
+            202,
+            189
+          ]
+        },
+        "blindReading": {
+          "observedValue": "ULTRA LSD 2 15 PPM",
+          "role": "supported",
+          "reason": "Printed as the product designation beneath the dangerous-goods description."
+        },
+        "crop": {
+          "pixelBox": [
+            0,
+            245,
+            1275,
+            362
+          ],
+          "paddingUnits": 30,
+          "context": "row"
+        },
+        "features": {
+          "candidate_null": 0.0,
+          "box_missing": 0.0,
+          "box_area": 0.0013100000000000002,
+          "box_width": 0.131,
+          "box_height": 0.01,
+          "reread_similarity": 1.0,
+          "reread_exact": 1.0,
+          "role_supported": 1.0,
+          "role_ambiguous": 0.0,
+          "crop_unreadable": 0.0,
+          "candidate_length": 18.0
+        },
+        "status": "corroborated_unvalidated",
+        "valueConfidence": null,
+        "evidenceConfidence": null
+      },
+      {
+        "path": "/products/0/product_code",
+        "candidate": "GNG003",
+        "location": {
+          "page": 1,
+          "bbox": [
+            39,
+            312,
+            82,
+            322
+          ]
+        },
+        "blindReading": {
+          "observedValue": "GNG003",
+          "role": "supported",
+          "reason": "Printed in the PRODUCT column preceding ULTRA LSD 2 15 PPM."
+        },
+        "crop": {
+          "pixelBox": [
+            0,
+            465,
+            1275,
+            582
+          ],
+          "paddingUnits": 30,
+          "context": "row"
+        },
+        "features": {
+          "candidate_null": 0.0,
+          "box_missing": 0.0,
+          "box_area": 0.00043,
+          "box_width": 0.043,
+          "box_height": 0.01,
+          "reread_similarity": 1.0,
+          "reread_exact": 1.0,
+          "role_supported": 1.0,
+          "role_ambiguous": 0.0,
+          "crop_unreadable": 0.0,
+          "candidate_length": 6.0
+        },
+        "status": "corroborated_unvalidated",
+        "valueConfidence": null,
+        "evidenceConfidence": null
+      },
+      {
+        "path": "/products/0/net_gallons",
+        "candidate": "6939",
+        "location": {
+          "page": 1,
+          "bbox": [
+            468,
+            179,
+            497,
+            189
+          ]
+        },
+        "blindReading": {
+          "observedValue": "6939",
+          "role": "supported",
+          "reason": "Printed under NET GALLONS."
+        },
+        "crop": {
+          "pixelBox": [
+            0,
+            245,
+            1275,
+            362
+          ],
+          "paddingUnits": 30,
+          "context": "row"
+        },
+        "features": {
+          "candidate_null": 0.0,
+          "box_missing": 0.0,
+          "box_area": 0.00029,
+          "box_width": 0.029,
+          "box_height": 0.01,
+          "reread_similarity": 1.0,
+          "reread_exact": 1.0,
+          "role_supported": 1.0,
+          "role_ambiguous": 0.0,
+          "crop_unreadable": 0.0,
+          "candidate_length": 4.0
+        },
+        "status": "corroborated_unvalidated",
+        "valueConfidence": null,
+        "evidenceConfidence": null
+      },
+      {
+        "path": "/products/0/gross_gallons",
+        "candidate": "7000",
+        "location": {
+          "page": 1,
+          "bbox": [
+            373,
+            179,
+            402,
+            189
+          ]
+        },
+        "blindReading": {
+          "observedValue": "7000",
+          "role": "supported",
+          "reason": "Printed under GROSS GALLONS."
+        },
+        "crop": {
+          "pixelBox": [
+            0,
+            245,
+            1275,
+            362
+          ],
+          "paddingUnits": 30,
+          "context": "row"
+        },
+        "features": {
+          "candidate_null": 0.0,
+          "box_missing": 0.0,
+          "box_area": 0.00029,
+          "box_width": 0.029,
+          "box_height": 0.01,
+          "reread_similarity": 1.0,
+          "reread_exact": 1.0,
+          "role_supported": 1.0,
+          "role_ambiguous": 0.0,
+          "crop_unreadable": 0.0,
+          "candidate_length": 4.0
+        },
+        "status": "corroborated_unvalidated",
+        "valueConfidence": null,
+        "evidenceConfidence": null
+      },
+      {
+        "path": "/products/0/e3_stock_id",
+        "candidate": null,
+        "location": {
+          "page": null,
+          "bbox": null
+        },
+        "blindReading": null,
+        "crop": null,
+        "features": {
+          "candidate_null": 1.0,
+          "box_missing": 1.0,
+          "box_area": 0.0,
+          "box_width": 0.0,
+          "box_height": 0.0,
+          "reread_similarity": null,
+          "reread_exact": null,
+          "role_supported": null,
+          "role_ambiguous": null,
+          "crop_unreadable": null,
+          "candidate_length": 0.0
+        },
+        "status": "unresolved",
+        "valueConfidence": null,
+        "evidenceConfidence": null
+      }
+    ],
+    "audit": {
+      "grounding": {
+        "stage": "grounding",
+        "requestId": "req_2c0b3f263e3e41c7b481ae32830b122f",
+        "responseId": "resp_023ce7b5920c74a9016ae665afbb5087d28d230d6dc8876c8b",
+        "model": "gpt-6.1-sol",
+        "usage": {
+          "input_tokens": 3404,
+          "input_tokens_details": {
+            "cache_write_tokens": 3401,
+            "cached_tokens": 0
+          },
+          "output_tokens": 321,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 3725
+        },
+        "seconds": 4.387832334032282,
+        "rawText": "{\n  \"/bol_number\": {\"page\": 1, \"bbox\": [157, 26, 228, 36]},\n  \"/contract_number\": {\"page\": null, \"bbox\": null},\n  \"/origin\": {\"page\": 1, \"bbox\": [99, 37, 297, 56]},\n  \"/supplier\": {\"page\": 1, \"bbox\": [177, 57, 353, 67]},\n  \"/carrier\": {\"page\": 1, \"bbox\": [482, 107, 546, 117]},\n  \"/transaction_date\": {\"page\": 1, \"bbox\": [502, 66, 572, 76]},\n  \"/destination\": {\"page\": 1, \"bbox\": [91, 98, 165, 108]},\n  \"/products/0/product\": {\"page\": 1, \"bbox\": [71, 179, 202, 189]},\n  \"/products/0/product_code\": {\"page\": 1, \"bbox\": [39, 312, 82, 322]},\n  \"/products/0/net_gallons\": {\"page\": 1, \"bbox\": [468, 179, 497, 189]},\n  \"/products/0/gross_gallons\": {\"page\": 1, \"bbox\": [373, 179, 402, 189]},\n  \"/products/0/e3_stock_id\": {\"page\": null, \"bbox\": null}\n}"
+      },
+      "groundingBatches": [
+        {
+          "stage": "grounding",
+          "requestId": "req_2c0b3f263e3e41c7b481ae32830b122f",
+          "responseId": "resp_023ce7b5920c74a9016ae665afbb5087d28d230d6dc8876c8b",
+          "model": "gpt-6.1-sol",
+          "usage": {
+            "input_tokens": 3404,
+            "input_tokens_details": {
+              "cache_write_tokens": 3401,
+              "cached_tokens": 0
+            },
+            "output_tokens": 321,
+            "output_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "total_tokens": 3725
+          },
+          "seconds": 4.387832334032282,
+          "rawText": "{\n  \"/bol_number\": {\"page\": 1, \"bbox\": [157, 26, 228, 36]},\n  \"/contract_number\": {\"page\": null, \"bbox\": null},\n  \"/origin\": {\"page\": 1, \"bbox\": [99, 37, 297, 56]},\n  \"/supplier\": {\"page\": 1, \"bbox\": [177, 57, 353, 67]},\n  \"/carrier\": {\"page\": 1, \"bbox\": [482, 107, 546, 117]},\n  \"/transaction_date\": {\"page\": 1, \"bbox\": [502, 66, 572, 76]},\n  \"/destination\": {\"page\": 1, \"bbox\": [91, 98, 165, 108]},\n  \"/products/0/product\": {\"page\": 1, \"bbox\": [71, 179, 202, 189]},\n  \"/products/0/product_code\": {\"page\": 1, \"bbox\": [39, 312, 82, 322]},\n  \"/products/0/net_gallons\": {\"page\": 1, \"bbox\": [468, 179, 497, 189]},\n  \"/products/0/gross_gallons\": {\"page\": 1, \"bbox\": [373, 179, 402, 189]},\n  \"/products/0/e3_stock_id\": {\"page\": null, \"bbox\": null}\n}"
+        }
+      ],
+      "blindReadings": [
+        {
+          "stage": "blind_reread",
+          "requestId": "req_594e1a77bc9640a38f0d08daf279653a",
+          "responseId": "resp_08bd00f5762138a1016ae665b438d087d2a9756fb2b3daeb57",
+          "model": "gpt-6.1-sol",
+          "usage": {
+            "input_tokens": 2875,
+            "input_tokens_details": {
+              "cache_write_tokens": 2872,
+              "cached_tokens": 0
+            },
+            "output_tokens": 464,
+            "output_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "total_tokens": 3339
+          },
+          "seconds": 5.236755917081609,
+          "rawText": "{\n  \"/bol_number\": {\n    \"observedValue\": \"0000813492\",\n    \"role\": \"supported\",\n    \"reason\": \"Printed beside BILL OF LADING #.\"\n  },\n  \"/origin\": {\n    \"observedValue\": \"280 WATERFRONT STREET, NEW HAVEN, CT 06512\",\n    \"role\": \"supported\",\n    \"reason\": \"Address explicitly labeled Shipment Origin.\"\n  },\n  \"/supplier\": {\n    \"observedValue\": \"0000001400 VALERO MARKETING & SUPPLY\",\n    \"role\": \"supported\",\n    \"reason\": \"Printed on the Supplier line.\"\n  },\n  \"/carrier\": {\n    \"observedValue\": \"JP NOONAN\",\n    \"role\": \"supported\",\n    \"reason\": \"Printed beside Carrier Name.\"\n  },\n  \"/transaction_date\": {\n    \"observedValue\": \"09/18/2026\",\n    \"role\": \"supported\",\n    \"reason\": \"Gate entry, load start, and load end dates all show this date.\"\n  },\n  \"/destination\": {\n    \"observedValue\": \"VARIOUS CT\",\n    \"role\": \"ambiguous\",\n    \"reason\": \"Destination line is blank; VARIOUS CT appears on the following Address line.\"\n  },\n  \"/products/0/product\": {\n    \"observedValue\": \"ULTRA LSD 2 15 PPM\",\n    \"role\": \"supported\",\n    \"reason\": \"Printed as the product designation beneath the dangerous-goods description.\"\n  },\n  \"/products/0/product_code\": {\n    \"observedValue\": \"GNG003\",\n    \"role\": \"supported\",\n    \"reason\": \"Printed in the PRODUCT column preceding ULTRA LSD 2 15 PPM.\"\n  },\n  \"/products/0/net_gallons\": {\n    \"observedValue\": \"6939\",\n    \"role\": \"supported\",\n    \"reason\": \"Printed under NET GALLONS.\"\n  },\n  \"/products/0/gross_gallons\": {\n    \"observedValue\": \"7000\",\n    \"role\": \"supported\",\n    \"reason\": \"Printed under GROSS GALLONS.\"\n  }\n}"
+        }
+      ]
+    },
+    "calibrationStatus": "not_fitted",
+    "productionReady": false,
+    "limitations": [
+      "Not the authors' implementation; no hidden-state, visual-encoder or coordinate-logprob features.",
+      "Same-provider errors can be correlated. Evidence agreement is not correctness confidence.",
+      "Value and evidence probabilities require reviewed, document-separated calibration and test data."
+    ],
+    "reviewFlags": [
+      {
+        "code": "LOW_CONFIDENCE",
+        "severity": "WARNING",
+        "field": "supplier",
+        "sourceField": "/supplier",
+        "source": "gpt_evidence_verification",
+        "message": "Extracted value and blind evidence reading disagree.",
+        "confidence": null,
+        "reason": "Printed on the Supplier line."
+      },
+      {
+        "code": "LOW_CONFIDENCE",
+        "severity": "WARNING",
+        "field": "destination",
+        "sourceField": "/destination",
+        "source": "gpt_evidence_verification",
+        "message": "Evidence does not clearly establish the requested field role.",
+        "confidence": null,
+        "reason": "Destination line is blank; VARIOUS CT appears on the following Address line."
+      }
+    ]
+  },
+  "ocrReviewFlags": [
+    {
+      "code": "LOW_CONFIDENCE",
+      "severity": "WARNING",
+      "field": "supplier",
+      "sourceField": "/supplier",
+      "source": "gpt_evidence_verification",
+      "message": "Extracted value and blind evidence reading disagree.",
+      "confidence": null,
+      "reason": "Printed on the Supplier line."
+    },
+    {
+      "code": "LOW_CONFIDENCE",
+      "severity": "WARNING",
+      "field": "destination",
+      "sourceField": "/destination",
+      "source": "gpt_evidence_verification",
+      "message": "Evidence does not clearly establish the requested field role.",
+      "confidence": null,
+      "reason": "Destination line is blank; VARIOUS CT appears on the following Address line."
+    }
+  ],
+  "verification": {
+    "status": "COMPLETED",
+    "reviewRequired": true,
+    "confidenceAvailable": false,
+    "method": "VERDICT-inspired-GPT-only-adaptation"
+  },
+  "pipeline": {
+    "version": "gpt-bol-three-stage-v1",
+    "status": "COMPLETED",
+    "apiCalls": 3,
+    "automaticRetries": 0,
+    "seconds": 14.108917959034443,
+    "usage": {
+      "input_tokens": 9533,
+      "output_tokens": 1001,
+      "total_tokens": 10534
+    },
+    "stages": [
+      {
+        "name": "extraction",
+        "status": "COMPLETED",
+        "apiCalls": 1
+      },
+      {
+        "name": "grounding",
+        "status": "COMPLETED",
+        "apiCalls": 1
+      },
+      {
+        "name": "blind_reread",
+        "status": "COMPLETED",
+        "apiCalls": 1
+      }
+    ]
+  }
+}

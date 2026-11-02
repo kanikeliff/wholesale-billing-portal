@@ -413,3 +413,77 @@ class HumanDecision(models.Model):
                 name="p_dec_feedback_idx",
             ),
         ]
+
+class OCRJob(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        PROCESSING = "PROCESSING", "Processing"
+        RETRY_PENDING = "RETRY_PENDING", "Retry Pending"
+        COMPLETED = "COMPLETED", "Completed"
+        FAILED = "FAILED", "Failed"
+
+    job_id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.PROTECT,
+        related_name="ocr_jobs",
+    )
+
+    status = models.CharField(
+        max_length=30,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+
+    attempt_count = models.PositiveIntegerField(default=0)
+    max_attempts = models.PositiveIntegerField(default=3)
+
+    next_retry_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    error_code = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+    )
+
+    error_message = models.TextField(
+        null=True,
+        blank=True,
+    )
+
+    raw_result = models.JSONField(
+        encoder=DjangoJSONEncoder,
+        default=dict,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["status", "next_retry_at"],
+                name="p_ocr_job_retry_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.job_id} - {self.status}"

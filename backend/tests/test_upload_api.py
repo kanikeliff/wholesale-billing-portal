@@ -12,12 +12,12 @@ class BillingRecordUploadAPITests(SimpleTestCase):
     def setUp(self):
         self.client = APIClient()
         self.url = "/api/v1/billing-records/upload/"
-
+        self.original_upload_service = BillingRecordUploadView.upload_service
         self.mock_service = Mock()
         BillingRecordUploadView.upload_service = self.mock_service
 
     def tearDown(self):
-        BillingRecordUploadView.upload_service = None
+        BillingRecordUploadView.upload_service = self.original_upload_service
 
     def test_upload_requires_file(self):
         response = self.client.post(

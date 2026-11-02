@@ -4,7 +4,8 @@ from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.permissions import IsAuthenticated
 from application.services.billing_record_service import BillingRecordService
 from application.services.billing_validation_service import BillingValidationService
 from application.services.correction_service import CorrectionService
@@ -15,6 +16,9 @@ from application.validators.billing_record_validator import BillingRecordValidat
 from core.exceptions.integration_exception import IntegrationException
 from infrastructure.mock.mock_billing_record_provider import (
     MockBillingRecordProvider,
+)
+from infrastructure.database.django_persistence_recommendation_repository import (
+    DjangoPersistenceRecommendationRepository,
 )
 from infrastructure.team_a.provider_factory import (
     build_recommendation_provider,
@@ -61,10 +65,17 @@ billing_validation_service = BillingValidationService(
     validator=BillingRecordValidator(),
 )
 
+recommendation_repository = (
+    None
+    if use_mock_provider
+    else DjangoPersistenceRecommendationRepository()
+)
+
 recommendation_service = RecommendationService(
     recommendation_provider=build_recommendation_provider(),
     billing_record_provider=billing_record_provider,
     billing_record_repository=billing_record_repository,
+    recommendation_repository=recommendation_repository,
     workflow_service=WorkflowService(),
 )
 
@@ -104,8 +115,8 @@ def _authenticated_actor(request):
 # -------------------------------------------------------------------
 
 class BillingRecordListView(APIView):
-    authentication_classes = []
-    permission_classes = []
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         records = billing_record_service.list_records()

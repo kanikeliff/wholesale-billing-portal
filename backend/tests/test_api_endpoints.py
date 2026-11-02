@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
@@ -521,6 +522,9 @@ class BillingRecordListApiTests(SimpleTestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.client.force_authenticate(
+            user=SimpleNamespace(is_authenticated=True)
+        )
 
     @patch(
         "presentation.api.billing_views."

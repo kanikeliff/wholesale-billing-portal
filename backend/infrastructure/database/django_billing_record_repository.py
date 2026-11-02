@@ -42,6 +42,47 @@ class DjangoBillingRecordRepository(BillingRecordRepository):
 
         return record
 
+    @transaction.atomic
+    def update_from_ocr(self, record_id, data):
+        record = (
+            BillingRecord.objects
+            .select_for_update()
+            .get(record_id=record_id)
+        )
+
+        if record.status != "OCR_PROCESSING":
+            raise ValueError(
+                f"OCR update is not allowed in status {record.status}."
+            )
+
+        record_data = data.copy()
+        line_items_data = record_data.pop("line_items", [])
+
+        for field_name, value in record_data.items():
+            if field_name not in {
+                "bol_number", "contract_lifting", "origin",
+                "supplier", "carrier", "transaction_date",
+                "destination", "status",
+            }:
+                raise ValueError(f"Unsupported OCR field: {field_name}")
+
+            setattr(record, field_name, value)
+
+        record.save()
+
+        for item_data in line_items_data:
+            LineItem.objects.update_or_create(
+                billing_record=record,
+                line_number=item_data["line_number"],
+                defaults={
+                    key: value
+                    for key, value in item_data.items()
+                    if key != "line_number"
+                },
+            )
+
+        return record
+
     def get_billing_record(self, record_id):
         return (
             BillingRecord.objects

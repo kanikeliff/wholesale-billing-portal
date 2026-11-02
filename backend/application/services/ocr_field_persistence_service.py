@@ -1,3 +1,4 @@
+
 from django.db import transaction
 
 from apps.billing.models import BillingRecord, LineItem
@@ -7,7 +8,14 @@ from apps.persistence.models import Document, ExtractedField, AuditEvent
 class OCRFieldPersistenceService:
 
     @transaction.atomic
-    def persist(self, *, record_id, document_id, canonical):
+    def persist(
+        self,
+        *,
+        record_id,
+        document_id,
+        canonical,
+        source="saved_ocr_extraction",
+    ):
         record = BillingRecord.objects.get(record_id=record_id)
 
         document = Document.objects.get(
@@ -40,7 +48,7 @@ class OCRFieldPersistenceService:
                         else ExtractedField.Quality.OK
                     ),
                     metadata={
-                        "source": "saved_ocr_extraction"
+                        "source": source
                     },
                 )
             )
@@ -68,7 +76,7 @@ class OCRFieldPersistenceService:
             metadata={
                 "documentId": str(document.document_id),
                 "extractedFieldCount": len(extracted_fields),
-                "source": "saved_ocr_extraction",
+                "source": source,
             },
         )
 

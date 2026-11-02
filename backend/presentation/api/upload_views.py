@@ -1,4 +1,8 @@
+import logging
+
 from rest_framework import status
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -6,10 +10,17 @@ from rest_framework.views import APIView
 from application.services.bol_upload_service import (
     BOLUploadError,
     EmptyFileError,
-    OCRProcessingError,
-    OCRTimeoutError,
     UnsupportedFileTypeError,
 )
+from application.services.document_file_service import (
+    DocumentFileService,
+)
+from application.services.durable_bol_upload_service import (
+    DurableBOLUploadService,
+)
+
+
+logger = logging.getLogger(__name__)
 
 
 class BillingRecordUploadView(APIView):
@@ -21,9 +32,20 @@ class BillingRecordUploadView(APIView):
         FormParser,
     ]
 
-    upload_service = None
+    upload_service = DurableBOLUploadService(
+        document_file_service=DocumentFileService()
+    )
 
     def post(self, request):
+        if self.upload_service is None:
+            return Response(
+                {
+                    "code": "OCR_SERVICE_NOT_CONFIGURED",
+                    "message": "Upload service is not configured.",
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
         uploaded_file = request.FILES.get("file")
 
         if uploaded_file is None:
@@ -37,55 +59,16 @@ class BillingRecordUploadView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if self.upload_service is None:
-            return Response(
-                {
-                    "code": "OCR_SERVICE_NOT_CONFIGURED",
-                    "message": (
-                        "The OCR upload service is not configured."
-                    ),
-                },
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-
         try:
-            result = self.upload_service.upload(
-                uploaded_file
-            )
+            result = self.upload_service.upload(uploaded_file)
 
-            return Response(
-                result,
-                status=status.HTTP_201_CREATED,
-            )
-
-        except (
-            UnsupportedFileTypeError,
-            EmptyFileError,
-        ) as error:
+        except (UnsupportedFileTypeError, EmptyFileError) as error:
             return Response(
                 {
                     "code": "INVALID_UPLOAD",
                     "message": str(error),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        except OCRTimeoutError as error:
-            return Response(
-                {
-                    "code": "OCR_TIMEOUT",
-                    "message": str(error),
-                },
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-
-        except OCRProcessingError as error:
-            return Response(
-                {
-                    "code": "OCR_PROCESSING_FAILED",
-                    "message": str(error),
-                },
-                status=status.HTTP_502_BAD_GATEWAY,
             )
 
         except BOLUploadError as error:
@@ -96,3 +79,19 @@ class BillingRecordUploadView(APIView):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        except Exception:
+            logger.exception("Durable BOL upload failed.")
+
+            return Response(
+                {
+                    "code": "UPLOAD_FAILED",
+                    "message": "Unable to store the uploaded document.",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response(
+            result,
+            status=status.HTTP_201_CREATED,
+        )

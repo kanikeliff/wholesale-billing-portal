@@ -1,3 +1,6 @@
+from application.services.durable_bol_upload_service import (
+    DurableBOLUploadService,
+)
 from application.services.ocr_field_persistence_service import OCRFieldPersistenceService
 from application.services.document_file_service import DocumentFileService
 from application.services.bol_upload_service import BOLUploadService
@@ -37,16 +40,11 @@ def wire_database_persistence():
     # Browser -> Django -> saved Ministral OCR -> normalization -> PostgreSQL
     import presentation.api.upload_views as upload_views
 
-    upload_views.BillingRecordUploadView.upload_service = BOLUploadService(
-        ocr_client=SamplePackageOCRClient(),
-        ocr_processing_service=OCRProcessingService(
-            adapter=BolLabAdapter(),
-            billing_record_repository=billing_record_repository,
-        ),
-        document_file_service=DocumentFileService(),
-        ocr_field_persistence_service=OCRFieldPersistenceService(),
+    upload_views.BillingRecordUploadView.upload_service = (
+    DurableBOLUploadService(
+        document_file_service=DocumentFileService()
     )
-
+)
     recommendation_provider = (
         billing_views.recommendation_service.recommendation_provider
     )
