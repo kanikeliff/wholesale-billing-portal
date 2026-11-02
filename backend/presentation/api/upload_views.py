@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 
 class BillingRecordUploadView(APIView):
-    authentication_classes = []
-    permission_classes = []
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated]
 
     parser_classes = [
         MultiPartParser,

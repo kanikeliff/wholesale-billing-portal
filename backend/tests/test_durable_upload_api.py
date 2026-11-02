@@ -1,6 +1,8 @@
 
 import tempfile
 
+from django.contrib.auth.models import User
+
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from rest_framework.test import APITestCase
@@ -22,6 +24,10 @@ class DurableUploadAPITests(APITestCase):
         self.addCleanup(settings_override.disable)
 
         self.url = "/api/v1/billing-records/upload/"
+
+        self.client.force_authenticate(
+            user=User(username="test-reviewer")
+        )
 
     def test_upload_creates_pending_ocr_job(self):
         uploaded_file = SimpleUploadedFile(
@@ -83,5 +89,19 @@ class DurableUploadAPITests(APITestCase):
             response.json()["code"],
             "FILE_REQUIRED",
         )
+        self.assertEqual(BillingRecord.objects.count(), 0)
+        self.assertEqual(OCRJob.objects.count(), 0)
+
+
+    def test_anonymous_upload_returns_403(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.post(
+            self.url,
+            {},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 403)
         self.assertEqual(BillingRecord.objects.count(), 0)
         self.assertEqual(OCRJob.objects.count(), 0)

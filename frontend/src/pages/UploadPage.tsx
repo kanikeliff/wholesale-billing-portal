@@ -1,4 +1,5 @@
 import BolPdfViewer from "../components/BolPdfViewer";
+import { uploadBillingRecord } from "../api/uploadApi";
 import { useEffect, useState, type ChangeEvent } from "react";
 import { Link } from "react-router-dom";
 
@@ -106,58 +107,12 @@ export default function UploadPage() {
     setUploadStatus("uploading");
 
     try {
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-
-      const baseUrl = (
-        import.meta.env.VITE_API_BASE_URL ||
-        "http://127.0.0.1:8000/api/v1"
-      ).replace(/\/$/, "");
-
-      // Do not set Content-Type manually; the browser supplies the boundary.
-      const response = await fetch(`${baseUrl}/billing-records/upload/`, {
-        method: "POST",
-        body: formData,
-      });
-      const result: unknown = await response.json().catch(() => null);
-      const payload =
-        result && typeof result === "object"
-          ? (result as Record<string, unknown>)
-          : {};
-      const backendMessage =
-        typeof payload.message === "string"
-          ? payload.message
-          : typeof payload.detail === "string"
-          ? payload.detail
-          : null;
-
-      if (response.status === 503) {
-        throw new Error(
-          backendMessage ||
-            "The backend upload endpoint is reachable, but OCR processing is not configured yet (HTTP 503)."
-        );
-      }
-      if (response.status === 202) {
-        throw new Error(
-          "Upload accepted for asynchronous processing (HTTP 202). The backend must provide a job-status endpoint before the result can be opened."
-        );
-      }
-      if (!response.ok) {
-        throw new Error(
-          backendMessage || `Upload failed (HTTP ${response.status}).`
-        );
-      }
-
-      const recordId = payload.recordId;
-      if (typeof recordId !== "string" || !recordId.trim()) {
-        throw new Error(
-          "The upload response did not include a saved billing record ID."
-        );
-      }
+      const result = await uploadBillingRecord(selectedFile);
 
       setUploadStatus("processing");
-      // Confirm the uploaded record is readable through the existing API.
-      const savedRecord = await getBillingRecord(recordId);
+
+      const savedRecord = await getBillingRecord(result.recordId);
+
       setBackendRecord(savedRecord);
       setUploadStatus("success");
     } catch (error) {

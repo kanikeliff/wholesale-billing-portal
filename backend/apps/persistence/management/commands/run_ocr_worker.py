@@ -23,9 +23,19 @@ class Command(BaseCommand):
             help="Seconds between polls when no job is ready.",
         )
 
+        parser.add_argument(
+            "--job-id",
+            type=str,
+            default=None,
+            help="Process only the specified OCR job.",
+        )
+
     def handle(self, *args, **options):
         if options["interval"] <= 0:
             raise CommandError("--interval must be positive.")
+
+        if options["job_id"] and not options["once"]:
+            raise CommandError("--job-id requires --once.")
 
         try:
             from mirabito_ocr.backend import extract_task
@@ -43,7 +53,9 @@ class Command(BaseCommand):
             close_old_connections()
 
             try:
-                result = worker.process_next_job()
+                result = worker.process_next_job(
+                    job_id=options["job_id"]
+                )
 
                 if result is not None:
                     self.stdout.write(

@@ -81,7 +81,7 @@ class OCRJobWorker:
 
         return recovered
 
-    def claim_next_job(self):
+    def claim_next_job(self, job_id=None):
         with transaction.atomic():
             now = timezone.now()
 
@@ -93,16 +93,17 @@ class OCRJobWorker:
                 )
             )
 
-            job = (
+            queryset = (
                 OCRJob.objects
                 .select_for_update(skip_locked=True)
                 .filter(ready_jobs)
-                .filter(
-                    attempt_count__lt=F("max_attempts")
-                )
-                .order_by("created_at")
-                .first()
+                .filter(attempt_count__lt=F("max_attempts"))
             )
+
+            if job_id is not None:
+                queryset = queryset.filter(job_id=job_id)
+
+            job = queryset.order_by("created_at").first()
 
             if job is None:
                 return None
@@ -134,8 +135,8 @@ class OCRJobWorker:
 
             return job.job_id
 
-    def process_next_job(self):
-        job_id = self.claim_next_job()
+    def process_next_job(self, job_id=None):
+        job_id = self.claim_next_job(job_id=job_id)
 
         if job_id is None:
             return None

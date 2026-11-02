@@ -1,3 +1,4 @@
+from django.contrib.auth.models import User
 from unittest.mock import Mock
 
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -11,6 +12,9 @@ class BillingRecordUploadAPITests(SimpleTestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.client.force_authenticate(
+            user=User(username="test-reviewer")
+        )
         self.url = "/api/v1/billing-records/upload/"
         self.original_upload_service = BillingRecordUploadView.upload_service
         self.mock_service = Mock()
