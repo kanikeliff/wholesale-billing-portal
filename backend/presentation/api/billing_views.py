@@ -4,8 +4,6 @@ from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authentication import SessionAuthentication
-from rest_framework.permissions import IsAuthenticated
 from application.services.billing_record_service import BillingRecordService
 from application.services.billing_validation_service import BillingValidationService
 from application.services.correction_service import CorrectionService
@@ -135,8 +133,8 @@ class BillingRecordListView(APIView):
 # -------------------------------------------------------------------
 
 class BillingRecordDetailView(APIView):
-    authentication_classes = []
-    permission_classes = []
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, record_id):
         try:
@@ -151,6 +149,34 @@ class BillingRecordDetailView(APIView):
                 if document
                 else None
             )
+            current_recommendation = (
+                recommendation_repository.get_current(record_id)
+                if recommendation_repository is not None
+                else None
+            )
+
+            record["recommendation"] = (
+                {
+                    "revision": current_recommendation.revision,
+                    "recommendation": current_recommendation.recommendation,
+                    "confidence": (
+                        float(current_recommendation.confidence)
+                        if current_recommendation.confidence is not None
+                        else None
+                    ),
+                    "modelVersion": current_recommendation.model_version,
+                    "matchedTerminalLogId": (
+                        current_recommendation.matched_terminal_log_id
+                    ),
+                    "rationale": current_recommendation.rationale,
+                    "mappedEntities": current_recommendation.mapped_entities,
+                    "exceptionIndicators": (
+                        current_recommendation.exception_indicators
+                    ),
+                }
+                if current_recommendation
+                else None
+)
 
             return Response(
                 record,
@@ -200,8 +226,8 @@ class BillingRecordValidationView(APIView):
 # -------------------------------------------------------------------
 
 class BillingRecordRecommendationView(APIView):
-    authentication_classes = []
-    permission_classes = []
+    authentication_classes = [SessionAuthentication]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, record_id):
         try:

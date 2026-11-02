@@ -10,6 +10,15 @@ class BillingRecordApiTests(SimpleTestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.client.force_authenticate(
+            user=User(username="test-reviewer")
+        )
+        repository_patch = patch(
+            "presentation.api.billing_views.recommendation_repository"
+        )
+        mock_repository = repository_patch.start()
+        mock_repository.get_current.return_value = None
+        self.addCleanup(repository_patch.stop)
 
     @patch(
         "presentation.api.billing_views."
@@ -103,6 +112,9 @@ class BillingRecordRecommendationApiTests(SimpleTestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.client.force_authenticate(
+            user=User(username="test-reviewer")
+        )
 
     @patch(
         "presentation.api.billing_views."
