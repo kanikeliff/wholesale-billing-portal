@@ -330,6 +330,19 @@ class DjangoBillingRecordRepository(BillingRecordRepository):
             )
             target["quality"] = extracted.quality
 
+        # Corrections resolve current review warnings without rewriting OCR
+        # evidence. Scope by line item so correcting one line cannot hide another.
+        for correction in record.audit_events.filter(
+            event_type="FIELD_CORRECTION"
+        ).values("field_name", "line_item_id"):
+            if correction["line_item_id"] is None:
+                target = fields.get(correction["field_name"])
+            else:
+                line = line_items_by_id.get(str(correction["line_item_id"]))
+                target = line.get(correction["field_name"]) if line else None
+            if target is not None:
+                target["isCorrected"] = True
+
         return {
             "recordId": str(record.record_id),
             "status": record.status,

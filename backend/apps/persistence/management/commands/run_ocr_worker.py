@@ -8,7 +8,7 @@ from application.services.ocr_job_worker import OCRJobWorker
 
 
 class Command(BaseCommand):
-    help = "Process pending OCR jobs using the Mirabito OCR extractor."
+    help = "Process pending OCR jobs using saved, SHA-256-matched sample extractions."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -37,15 +37,9 @@ class Command(BaseCommand):
         if options["job_id"] and not options["once"]:
             raise CommandError("--job-id requires --once.")
 
-        try:
-            from mirabito_ocr.backend import extract_task
-        except ImportError as exc:
-            raise CommandError(
-                "Mirabito OCR package is not installed in "
-                "the backend environment."
-            ) from exc
+        from infrastructure.ocr.sample_package_ocr_client import SamplePackageOCRClient
 
-        worker = OCRJobWorker(extractor=extract_task)
+        worker = OCRJobWorker(extractor=SamplePackageOCRClient().submit_document)
 
         self.stdout.write("OCR worker started.")
 

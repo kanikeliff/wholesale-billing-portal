@@ -24,6 +24,7 @@ class CorrectionService:
         RecordStatus.OCR_COMPLETE.value,
         RecordStatus.NEEDS_REVIEW.value,
         RecordStatus.RECOMMENDATION_READY.value,
+        RecordStatus.RECOMMENDATION_PENDING.value,
     }
 
     def __init__(
@@ -232,6 +233,10 @@ class CorrectionService:
         self,
         current_status,
     ):
+        # Further corrections keep the record pending reevaluation.
+        if current_status == RecordStatus.RECOMMENDATION_PENDING.value:
+            return
+
         if self.workflow_service is not None:
             self.workflow_service.validate_transition(
                 current_status,

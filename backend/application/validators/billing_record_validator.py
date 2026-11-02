@@ -82,6 +82,15 @@ class BillingRecordValidator:
         if not isinstance(field_data, dict):
             return
 
+        # The quality describes original OCR evidence, not a saved human value.
+        value = field_data.get("normalizedValue")
+        if (
+            field_data.get("isCorrected") is True
+            and value is not None
+            and str(value).strip()
+        ):
+            return
+
         quality = field_data.get("quality")
 
         if quality not in self.REVIEW_QUALITIES:

@@ -12,7 +12,10 @@ export interface ExtractedField<T = string | number | null> {
   normalizedValue: T;
   rawValue?: string | null;
   confidence?: number | null;
+  // Quality and confidence describe the original OCR evidence.
   quality?: FieldQuality;
+  // Derived from persisted human correction audit events.
+  isCorrected?: boolean;
 }
 
 export interface BillingDocument {

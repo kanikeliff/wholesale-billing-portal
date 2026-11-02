@@ -94,6 +94,9 @@ export default function UploadPage() {
     uploadStatus === "uploading" ||
     uploadStatus === "processing";
 
+  const ocrPending = ["UPLOADED", "OCR_PROCESSING"].includes(backendRecord?.status ?? "");
+  const ocrFailed = backendRecord?.status === "EXCEPTION";
+
   // File validation: PDF, JPG, JPEG and PNG.
   const handleFileChange = (
     event: ChangeEvent<HTMLInputElement>
@@ -648,6 +651,10 @@ export default function UploadPage() {
                     ? "Sending the selected BOL document to the backend..."
                     : uploadStatus === "processing"
                     ? "Retrieving the saved billing record..."
+                    : ocrPending
+                    ? "Upload saved. OCR is still processing; you can open Review Workspace now."
+                    : ocrFailed
+                    ? "OCR could not complete. Open Review Workspace to inspect the record."
                     : "The billing record is ready for review."}
                 </p>
               </div>
@@ -668,7 +675,11 @@ export default function UploadPage() {
           backendRecord && (
             <section className="upload-card">
               <div className="upload-success-banner">
-                BOL processed and saved by the backend successfully.
+                {ocrPending
+                  ? "BOL uploaded and saved. OCR is still processing."
+                  : ocrFailed
+                  ? "BOL uploaded and saved. OCR could not complete."
+                  : "BOL processed and saved by the backend successfully."}
               </div>
 
               <h2>OCR Result</h2>
@@ -802,7 +813,7 @@ export default function UploadPage() {
                   fontSize: 13,
                   color: colors.muted
                 }}>
-                  Ready to inspect the saved OCR fields.
+                  {ocrPending ? "Open the workspace while OCR finishes." : "Ready to inspect the saved OCR fields."}
                 </span>
 
                 <Link

@@ -29,6 +29,48 @@ class DurableUploadAPITests(APITestCase):
             user=User(username="test-reviewer")
         )
 
+    def test_sample_upload_worker_review_and_multiple_corrections(self):
+        from pathlib import Path
+        from unittest.mock import patch
+        from django.core.management import call_command
+        from apps.persistence.models import AuditEvent
+
+        sample = Path(__file__).parent / "fixtures/ocr_samples/Sample_BOL_1.pdf"
+        response = self.client.post(self.url, {"file": SimpleUploadedFile(
+            "renamed.pdf", sample.read_bytes(), content_type="application/pdf"
+        )}, format="multipart")
+        self.assertEqual(response.status_code, 201)
+        uploaded = response.json()
+        detail_url = f"/api/v1/billing-records/{uploaded['recordId']}/"
+        self.assertEqual(self.client.get(detail_url).json()["status"], "UPLOADED")
+        # The command normally closes connections between jobs; this API test
+        # deliberately shares Django TestCase's enclosing transaction.
+        with patch("apps.persistence.management.commands.run_ocr_worker.close_old_connections"):
+            call_command("run_ocr_worker", once=True, job_id=uploaded["jobId"])
+        job = OCRJob.objects.get(job_id=uploaded["jobId"])
+        self.assertEqual(job.status, "COMPLETED", job.error_message)
+        data = self.client.get(detail_url).json()
+        self.assertIn(data["status"], ["OCR_COMPLETE", "NEEDS_REVIEW"])
+        for field in data["fields"].values():
+            self.assertIsNone(field["confidence"])
+        missing = [field for field in data["fields"].values() if field["quality"] == "MISSING"]
+        self.assertTrue(missing)
+        self.assertTrue(all(field["normalizedValue"] is None for field in missing))
+        original = data["fields"]["carrier"]["rawValue"]
+        for field, value in [("carrier", "Reviewed carrier"), ("destination", "Reviewed destination")]:
+            correction = self.client.patch(
+                f"{detail_url}fields/{field}/", {"value": value}, format="json"
+            )
+            self.assertEqual(correction.status_code, 200, correction.data)
+        refreshed = self.client.get(detail_url).json()
+        self.assertEqual(refreshed["fields"]["carrier"]["normalizedValue"], "Reviewed carrier")
+        self.assertEqual(refreshed["fields"]["destination"]["normalizedValue"], "Reviewed destination")
+        self.assertEqual(refreshed["fields"]["carrier"]["rawValue"], original)
+        self.assertIsNone(refreshed["fields"]["carrier"]["confidence"])
+        self.assertEqual(AuditEvent.objects.filter(
+            billing_record_id=uploaded["recordId"], event_type="FIELD_CORRECTION"
+        ).count(), 2)
+
     def test_upload_creates_pending_ocr_job(self):
         uploaded_file = SimpleUploadedFile(
             "sample.pdf",

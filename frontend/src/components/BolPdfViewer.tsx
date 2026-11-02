@@ -4,7 +4,12 @@ import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
-pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+pdfjs.GlobalWorkerOptions.workerSrc = `${import.meta.env.BASE_URL}pdfjs-assets/pdf.worker.min.mjs`;
+
+// Keep options stable so React-PDF does not reload on every render.
+const pdfOptions = {
+  wasmUrl: `${import.meta.env.BASE_URL}pdfjs-assets/`,
+};
 
 type BolPdfViewerProps = {
   fileUrl: string;
@@ -97,6 +102,7 @@ export default function BolPdfViewer({
       }}>
         <Document
           file={fileUrl}
+          options={pdfOptions}
           onLoadSuccess={({ numPages }) => {
             setNumPages(numPages);
             setPageNumber(1);

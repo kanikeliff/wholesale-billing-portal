@@ -41,6 +41,35 @@ class DatabasePersistenceTests(TestCase):
         self.workflow_service = WorkflowService()
 
 
+    def test_multiple_corrections_persist_while_reevaluation_is_pending(self):
+        record = BillingRecord.objects.create(status="NEEDS_REVIEW", carrier="Original")
+        line = LineItem.objects.create(
+            billing_record=record, line_number=1, product="Original product"
+        )
+        evidence = ExtractedField.objects.create(
+            billing_record=record, field_name="carrier", raw_value="Original",
+            normalized_value="Original", confidence=None, quality="OK",
+        )
+        service = CorrectionService(
+            billing_record_provider=self.billing_repository,
+            correction_repository=self.correction_repository,
+            workflow_service=self.workflow_service,
+        )
+        record_id = str(record.record_id)
+        service.correct_record_field(record_id, "carrier", "Corrected")
+        service.correct_record_field(record_id, "destination", "Albany")
+        service.correct_line_item_field(record_id, str(line.line_item_id), "netGallons", 100)
+        refreshed = self.billing_repository.get_by_id(record_id)
+        self.assertEqual(refreshed["status"], "RECOMMENDATION_PENDING")
+        self.assertEqual(refreshed["fields"]["carrier"]["normalizedValue"], "Corrected")
+        self.assertEqual(refreshed["fields"]["destination"]["normalizedValue"], "Albany")
+        self.assertEqual(refreshed["lineItems"][0]["netGallons"]["normalizedValue"], 100)
+        self.assertEqual(refreshed["fields"]["carrier"]["rawValue"], "Original")
+        self.assertIsNone(refreshed["fields"]["carrier"]["confidence"])
+        evidence.refresh_from_db()
+        self.assertEqual(evidence.raw_value, "Original")
+        self.assertEqual(AuditEvent.objects.filter(billing_record=record).count(), 3)
+
     def test_billing_record_compensation_delete_cascades_line_items(self):
         record = BillingRecord.objects.create(
             bol_number="UPLOAD-COMPENSATION-TEST",

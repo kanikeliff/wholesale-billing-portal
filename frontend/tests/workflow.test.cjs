@@ -1,0 +1,258 @@
+// Component behavior tests with deterministic hooks/timers and mocked HTTP.
+// These exercise the actual TSX and API modules; they do not replace browser checks.
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const ts = require('typescript');
+const root = path.resolve(__dirname, '..');
+
+function load(relative, imports = {}, globals = {}) {
+  const source = fs.readFileSync(path.join(root, relative), 'utf8')
+    .replace('import.meta.env.VITE_API_BASE_URL', '""');
+  const compiled = ts.transpileModule(source, { compilerOptions: {
+    module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX,
+  }}).outputText;
+  const context = { exports: {}, console: { error() {} }, ...globals,
+    require(name) {
+      if (name.endsWith('.css')) return {};
+      assert.ok(name in imports, `Unexpected import: ${name}`);
+      return imports[name];
+    },
+  };
+  vm.runInNewContext(compiled, context);
+  return context.exports;
+}
+
+function billingRecord(status = 'OCR_COMPLETE', id = 'rec-1') {
+  const field = value => ({ normalizedValue: value, rawValue: value,
+    confidence: null, quality: value == null ? 'MISSING' : 'OK' });
+  return { recordId: id, status, fields: Object.fromEntries([
+    ['bolNumber', 'BOL-1'], ['contractLifting', null], ['origin', 'Syracuse'],
+    ['supplier', 'Supplier'], ['carrier', 'Carrier'], ['transactionDate', '2026-09-17'],
+    ['destination', 'Albany'],
+  ].map(([name, value]) => [name, field(value)])), lineItems: [
+    { lineItemId: 'line-1', product: field('Gas'), grossGallons: field(100),
+      netGallons: field(99), e3StockId: field(null) },
+  ] };
+}
+function nodes(node, result = []) {
+  if (!node || typeof node !== 'object') return result;
+  if (Array.isArray(node)) { node.forEach(n => nodes(n, result)); return result; }
+  result.push(node); nodes(node.props?.children, result); return result;
+}
+function content(node) {
+  if (node == null || typeof node === 'boolean') return '';
+  if (Array.isArray(node)) return node.map(content).join('');
+  if (typeof node !== 'object') return String(node);
+  return content(node.props?.children);
+}
+function deferred() {
+  let resolve;
+  const promise = new Promise(r => { resolve = r; });
+  return { promise, resolve };
+}
+function mount(page, api) {
+  const slots = [], timers = new Map();
+  let cursor = 0, effects = [], dirty = false, tree, timer = 0, id = 'rec-1';
+  const react = {
+    useState(initial) {
+      const i = cursor++;
+      if (!slots[i]) slots[i] = { value: initial };
+      return [slots[i].value, value => {
+        const next = typeof value === 'function' ? value(slots[i].value) : value;
+        if (next !== slots[i].value) { slots[i].value = next; dirty = true; }
+      }];
+    },
+    useMemo(fn) { return fn(); },
+    useEffect(fn, deps) {
+      const i = cursor++, previous = slots[i];
+      if (!previous || deps.some((d, n) => d !== previous.deps[n])) {
+        effects.push(() => { previous?.cleanup?.(); slots[i] = { deps, cleanup: fn() }; });
+      }
+    },
+  };
+  const jsx = (type, props) => ({ type, props });
+  const component = load(`src/pages/${page}.tsx`, {
+    react,
+    'react/jsx-runtime': { jsx, jsxs: jsx },
+    'react-router-dom': { useParams: () => ({ id }), Link: 'a' },
+    '../components/BolPdfViewer': { default: 'pdf-viewer' },
+    ...Object.fromEntries(['billingRecord', 'correction', 'decision', 'validation',
+      'recommendation', 'upload'].map(name => [`../api/${name}Api`, api])),
+  }, { window: {
+    setInterval(fn) { timers.set(++timer, fn); return timer; },
+    clearInterval(handle) { timers.delete(handle); },
+  }, URL: { createObjectURL: () => 'blob:preview', revokeObjectURL() {} } }).default;
+  function render() {
+    let count = 0;
+    do {
+      assert.ok(count++ < 20, 'render loop'); dirty = false; cursor = 0;
+      tree = component(); const run = effects; effects = []; run.forEach(fn => fn());
+    } while (dirty);
+  }
+  const find = predicate => { const node = nodes(tree).find(predicate); assert.ok(node, 'node found'); return node; };
+  render();
+  return {
+    timers, render,
+    async flush() { await new Promise(setImmediate); render(); },
+    input(key) { return find(n => n.type === 'input' && n.props.id === key).props; },
+    button(label) { return find(n => n.type === 'button' && content(n) === label).props; },
+    field(key) { return find(n => n.props?.className?.startsWith('review-field ') &&
+      nodes(n).some(child => child.type === 'input' && child.props.id === key)).props; },
+    text() { return content(tree); },
+    navigate(next) { id = next; render(); },
+    unmount() { for (const slot of slots) slot.cleanup?.(); },
+  };
+}
+
+test('Review polling merges OCR results, protects in-flight edits, and stops at completion', async () => {
+  let response = billingRecord('UPLOADED'), calls = 0;
+  const page = mount('ReviewPage', { getBillingRecord: async () => { calls++; return response; } });
+  await page.flush(); assert.equal(page.timers.size, 1);
+  page.input('carrier').onChange({ target: { value: 'Unsaved carrier' } }); page.render();
+  const request = deferred(); response = request.promise;
+  const tick = [...page.timers.values()][0]; const active = tick();
+  await tick(); assert.equal(calls, 2, 'no overlapping polls');
+  page.input('destination').onChange({ target: { value: 'Edit during request' } }); page.render();
+  const finished = billingRecord('NEEDS_REVIEW'); finished.fields.supplier.normalizedValue = 'OCR supplier';
+  request.resolve(finished); await active; page.render();
+  assert.equal(page.input('carrier').value, 'Unsaved carrier');
+  assert.equal(page.input('destination').value, 'Edit during request');
+  assert.equal(page.input('supplier').value, 'OCR supplier');
+  assert.equal(page.timers.size, 0); page.unmount();
+});
+
+test('late OCR response cannot replace a newly navigated review record', async () => {
+  let response = billingRecord('OCR_PROCESSING');
+  const page = mount('ReviewPage', { getBillingRecord: async () => response });
+  await page.flush(); const request = deferred(); response = request.promise;
+  const tick = [...page.timers.values()][0]();
+  response = billingRecord('OCR_COMPLETE', 'rec-2'); page.navigate('rec-2'); await page.flush();
+  request.resolve(billingRecord('OCR_COMPLETE')); await tick; page.render();
+  assert.ok(page.text().includes('rec-2')); assert.equal(page.timers.size, 0); page.unmount();
+});
+
+test('saved missing-field corrections clear warnings without inventing confidence or raw values', async () => {
+  const record = billingRecord(); const requests = [];
+  const page = mount('ReviewPage', {
+    getBillingRecord: async () => structuredClone(record),
+    updateBillingField: async (...args) => {
+      requests.push(args); const [, name, value] = args;
+      Object.assign(record.fields[name], { normalizedValue: value, isCorrected: true });
+      record.status = 'RECOMMENDATION_PENDING';
+    },
+    updateBillingLineItem: async (...args) => {
+      requests.push(args); const [, , name, value] = args;
+      Object.assign(record.lineItems[0][name], { normalizedValue: value, isCorrected: true });
+    },
+  });
+  await page.flush();
+  assert.ok(page.field('contractLifting').className.includes('warning'));
+  assert.ok(page.field('line-line-1-e3StockId').className.includes('warning'));
+  page.input('contractLifting').onChange({ target: { value: ' TEST-CONTRACT ' } });
+  page.input('line-line-1-e3StockId').onChange({ target: { value: 'TEST-E3' } }); page.render();
+  await page.button('Save Changes').onClick(); page.render();
+  assert.deepEqual(requests, [['rec-1', 'contractLifting', 'TEST-CONTRACT'], ['rec-1', 'line-1', 'e3StockId', 'TEST-E3']]);
+  assert.ok(!page.field('contractLifting').className.includes('warning'));
+  assert.ok(!page.field('line-line-1-e3StockId').className.includes('warning'));
+  assert.ok(page.text().includes('Unavailable')); assert.ok(page.text().includes('Original OCR: Not available'));
+  assert.ok(page.text().includes('2 correction(s) saved')); assert.equal(page.button('Save Changes').disabled, true);
+  page.unmount();
+  const reloaded = mount('ReviewPage', { getBillingRecord: async () => structuredClone(record) });
+  await reloaded.flush();
+  assert.equal(reloaded.input('contractLifting').value, 'TEST-CONTRACT');
+  assert.ok(!reloaded.field('contractLifting').className.includes('warning'));
+  assert.ok(!reloaded.field('line-line-1-e3StockId').className.includes('warning'));
+  assert.ok(reloaded.text().includes('Unavailable')); reloaded.unmount();
+});
+
+test('partial save keeps failed edits and confirms persisted numeric normalization', async () => {
+  const record = billingRecord(); let fail = true;
+  const page = mount('ReviewPage', {
+    getBillingRecord: async () => structuredClone(record),
+    updateBillingField: async (_, name, value) => { record.fields[name].normalizedValue = value; },
+    updateBillingLineItem: async (_, line, name, value) => {
+      if (fail) throw new Error('test failure');
+      record.lineItems[0][name].normalizedValue = value;
+    },
+  });
+  await page.flush();
+  page.input('carrier').onChange({ target: { value: 'Reviewed' } });
+  page.input('line-line-1-netGallons').onChange({ target: { value: ' 98.00 ' } }); page.render();
+  await page.button('Save Changes').onClick(); page.render();
+  assert.equal(page.input('carrier').value, 'Reviewed');
+  assert.equal(page.input('line-line-1-netGallons').value, ' 98.00 ');
+  assert.ok(page.text().includes('Saved 1/2')); fail = false;
+  await page.button('Save Changes').onClick(); page.render();
+  assert.equal(page.input('line-line-1-netGallons').value, '98');
+  assert.equal(page.button('Save Changes').disabled, true); page.unmount();
+});
+
+test('UploadPage polls until OCR completes', async () => {
+  let record = billingRecord('UPLOADED'), calls = 0;
+  const page = mount('UploadPage', {
+    uploadBillingRecord: async () => ({ recordId: 'rec-1' }),
+    getBillingRecord: async () => { calls++; return record; },
+  });
+  page.input('bol-file').onChange({ target: { files: [{ name: 'sample.pdf', type: 'application/pdf', size: 100 }] } });
+  page.render(); await page.button('Upload & Process BOL').onClick(); page.render();
+  assert.equal(page.timers.size, 1); assert.ok(page.text().includes('OCR is still processing'));
+  const pending = deferred(); record = pending.promise;
+  const tick = [...page.timers.values()][0]; const active = tick(); await tick(); assert.equal(calls, 2);
+  pending.resolve(billingRecord('OCR_COMPLETE')); await active; page.render();
+  assert.equal(page.timers.size, 0); assert.ok(page.text().includes('BOL processed and saved'));
+  page.unmount();
+});
+
+test('correction API helpers send value-only PATCH requests with session and CSRF', async () => {
+  const requests = [];
+  const api = load('src/api/apiClient.ts', {}, { Headers, FormData, fetch: async (url, options) => {
+    requests.push({url, options});
+    return { ok: true, status: 200, json: async () => url.endsWith('/csrf/') ? { csrfToken: 'test-token' } : {} };
+  }});
+  const corrections = load('src/api/correctionApi.ts', { './apiClient': api });
+  await corrections.updateBillingField('rec/a', 'contractLifting', 'TEST');
+  await corrections.updateBillingLineItem('rec/a', 'line/b', 'e3StockId', 'TEST-E3');
+  const patches = requests.filter(r => r.options.method === 'PATCH'); assert.equal(patches.length, 2);
+  assert.equal(patches[0].url, '/api/v1/billing-records/rec%2Fa/fields/contractLifting/');
+  assert.equal(patches[1].url, '/api/v1/billing-records/rec%2Fa/line-items/line%2Fb/e3StockId/');
+  assert.equal(patches[0].options.body, '{"value":"TEST"}');
+  for (const { options } of patches) {
+    assert.equal(options.credentials, 'include'); assert.equal(options.headers.get('X-CSRFToken'), 'test-token');
+  }
+});
+
+
+test('UploadPage discards an in-flight poll after a new file selection', async () => {
+  let response = billingRecord('UPLOADED');
+  const page = mount('UploadPage', {
+    uploadBillingRecord: async () => ({ recordId: 'rec-1' }),
+    getBillingRecord: async () => response,
+  });
+  const selection = name => ({ target: { files: [{ name, type: 'application/pdf', size: 100 }] } });
+  page.input('bol-file').onChange(selection('first.pdf')); page.render();
+  await page.button('Upload & Process BOL').onClick(); page.render();
+  const request = deferred(); response = request.promise;
+  const active = [...page.timers.values()][0]();
+  page.input('bol-file').onChange(selection('second.pdf')); page.render();
+  request.resolve(billingRecord('OCR_COMPLETE')); await active; page.render();
+  assert.equal(page.timers.size, 0);
+  assert.ok(page.text().includes('second.pdf')); assert.ok(!page.text().includes('rec-1'));
+  page.unmount();
+});
+
+test('failed refresh after PATCH retains edits and does not claim a verified save', async () => {
+  let calls = 0;
+  const page = mount('ReviewPage', {
+    getBillingRecord: async () => { if (calls++) throw new Error('offline'); return billingRecord(); },
+    updateBillingField: async () => ({}),
+  });
+  await page.flush();
+  page.input('carrier').onChange({ target: { value: 'Unsure if saved' } }); page.render();
+  await page.button('Save Changes').onClick(); page.render();
+  assert.equal(page.input('carrier').value, 'Unsure if saved');
+  assert.ok(page.text().includes('refreshing the record failed'));
+  assert.ok(!page.text().includes('saved and confirmed')); page.unmount();
+});

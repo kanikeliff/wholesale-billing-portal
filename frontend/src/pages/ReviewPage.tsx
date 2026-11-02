@@ -80,6 +80,7 @@ function toText(value: unknown): string {
 }
 
 function needsReview(field: ExtractedField<unknown>) {
+  if (field.isCorrected && toText(field.normalizedValue).trim()) return false;
   return (
     field.quality === "LOW_CONFIDENCE" ||
     field.quality === "MISSING" ||
@@ -205,6 +206,42 @@ const [evaluationError, setEvaluationError] = useState("");
       active = false;
     };
   }, [id]);
+
+  // Refresh only active OCR records. Merge against the previous server values
+  // so edits made even while a request is in flight remain in the draft.
+  useEffect(() => {
+    if (!record || record.recordId !== id || saving ||
+        !["UPLOADED", "OCR_PROCESSING"].includes(record.status)) return;
+
+    let active = true;
+    let fetching = false;
+    const baseline = createDraft(record);
+    const interval = window.setInterval(async () => {
+      if (fetching) return;
+      fetching = true;
+      try {
+        const updated = await getBillingRecord(record.recordId);
+        if (!active) return;
+        const values = createDraft(updated);
+        setDraft(previous => {
+          const merged = { ...values };
+          for (const key of Object.keys(previous)) {
+            if (previous[key] !== baseline[key]) merged[key] = previous[key];
+          }
+          return merged;
+        });
+        setRecord(updated);
+      } catch (error) {
+        console.error("OCR refresh failed:", error);
+      } finally {
+        fetching = false;
+      }
+    }, 2000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [id, record, saving]);
 
   const originalValues = useMemo(
     () => (record ? createDraft(record) : {}),
@@ -363,19 +400,28 @@ const refreshRecommendation = async () => {
       pending.push({ key, kind: "line", fieldName: lineName, lineItemId: line.lineItemId, value });
     }
 
+    const submitted = Object.fromEntries(
+      pending.map(change => [change.key, toText(change.value)])
+    );
+    if (pending.some(change => change.value === null)) {
+      setSaveError("Corrected values cannot be empty.");
+      return;
+    }
+
     setSaving(true);
     setSaveError("");
     setSaveMessage("");
     const completed = new Set<string>();
     let failure = "";
-    const reviewedBy = "user_001"; // Demo identity; replace with authenticated user ID.
+    setValidationResult(null);
+    setEvaluationResult(null);
 
     for (const change of pending) {
       try {
         if (change.kind === "field") {
-          await updateBillingField(record.recordId, change.fieldName, change.value, reviewedBy);
+          await updateBillingField(record.recordId, change.fieldName, change.value);
         } else {
-          await updateBillingLineItem(record.recordId, change.lineItemId!, change.fieldName, change.value, reviewedBy);
+          await updateBillingLineItem(record.recordId, change.lineItemId!, change.fieldName, change.value);
         }
         completed.add(change.key);
       } catch (err) {
@@ -392,11 +438,11 @@ const refreshRecommendation = async () => {
       const unverifiedEdits = modifiedKeys.filter(
         (key) =>
           !completed.has(key) ||
-          actualValues[key] !== draft[key]
+          actualValues[key] !== submitted[key]
       );
 
       const unpersisted = [...completed].filter(
-        (key) => actualValues[key] !== draft[key]
+        (key) => actualValues[key] !== submitted[key]
       );
 
       const nextDraft = { ...actualValues };
@@ -1092,7 +1138,7 @@ const handleDecision = async (decision: HumanDecision) => {
 
   <p className="review-recommendation-note">
     Decisions are submitted to Team B backend.
-    Reviewer identity integration is not yet complete.
+    Decisions use your authenticated reviewer identity.
   </p>
 </div>
 
