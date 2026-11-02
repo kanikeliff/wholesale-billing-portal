@@ -51,6 +51,15 @@ class Document(models.Model):
         return f"{self.document_id} - {self.original_filename}"
 
 
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["billing_record", "-created_at"],
+                name="p_doc_rec_time_idx",
+            ),
+        ]
+
+
 class ExtractedField(models.Model):
     class Quality(models.TextChoices):
         OK = "OK", "OK"

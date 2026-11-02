@@ -64,6 +64,45 @@ class BillingRecord(models.Model):
         auto_now=True,
     )
 
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["bol_number"],
+                name="b_rec_bol_idx",
+            ),
+            models.Index(
+                fields=["status", "-created_at"],
+                name="b_rec_status_time_idx",
+            ),
+            models.Index(
+                fields=["transaction_date"],
+                name="b_rec_tx_date_idx",
+            ),
+            models.Index(
+                fields=["-created_at"],
+                name="b_rec_created_idx",
+            ),
+        ]
+
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(
+                    status__in=[
+                        "UPLOADED",
+                        "OCR_PROCESSING",
+                        "OCR_COMPLETE",
+                        "NEEDS_REVIEW",
+                        "RECOMMENDATION_PENDING",
+                        "RECOMMENDATION_READY",
+                        "APPROVED",
+                        "REJECTED",
+                        "EXCEPTION",
+                    ]
+                ),
+                name="b_rec_valid_status",
+            ),
+        ]
+
     def __str__(self):
         return f"{self.record_id} - {self.bol_number or 'No BOL'}"
 
