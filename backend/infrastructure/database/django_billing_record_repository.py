@@ -295,6 +295,41 @@ class DjangoBillingRecordRepository(BillingRecordRepository):
                 }
             )
 
+        # Attach persisted OCR metadata without changing current values.
+        line_items_by_id = {
+            item["lineItemId"]: item for item in line_items
+        }
+
+        extracted_fields = (
+            record.extracted_fields
+            .select_related("line_item")
+            .order_by("created_at", "pk")
+        )
+
+        for extracted in extracted_fields:
+            if extracted.line_item_id is None:
+                target = fields.get(extracted.field_name)
+            else:
+                line = line_items_by_id.get(
+                    str(extracted.line_item_id)
+                )
+                target = (
+                    line.get(extracted.field_name)
+                    if line is not None
+                    else None
+                )
+
+            if target is None:
+                continue
+
+            target["rawValue"] = extracted.raw_value
+            target["confidence"] = (
+                float(extracted.confidence)
+                if extracted.confidence is not None
+                else None
+            )
+            target["quality"] = extracted.quality
+
         return {
             "recordId": str(record.record_id),
             "status": record.status,
