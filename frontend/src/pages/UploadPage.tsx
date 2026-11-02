@@ -49,6 +49,47 @@ export default function UploadPage() {
   const [backendRecord, setBackendRecord] =
     useState<BillingRecord | null>(null);
 
+  // Refresh the saved record while OCR is still processing.
+  useEffect(() => {
+    const recordId = backendRecord?.recordId;
+    const status = backendRecord?.status;
+
+    if (
+      !recordId ||
+      !["UPLOADED", "OCR_PROCESSING"].includes(status ?? "")
+    ) {
+      return;
+    }
+
+    let active = true;
+    let fetching = false;
+
+    const interval = window.setInterval(async () => {
+      if (fetching) return;
+
+      fetching = true;
+
+      try {
+        const updated = await getBillingRecord(recordId);
+
+        if (active) {
+          setBackendRecord(current =>
+            current?.recordId === recordId ? updated : current
+          );
+        }
+      } catch (error) {
+        console.error("OCR refresh failed:", error);
+      } finally {
+        fetching = false;
+      }
+    }, 2000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [backendRecord?.recordId, backendRecord?.status]);
+
   const isProcessing =
     uploadStatus === "uploading" ||
     uploadStatus === "processing";
