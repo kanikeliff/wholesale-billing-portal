@@ -18,6 +18,7 @@ from application.services.document_file_service import (
 from application.services.durable_bol_upload_service import (
     DurableBOLUploadService,
 )
+from infrastructure.ocr.runtime_configuration import OCRRuntimeUnavailable
 
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,9 @@ class BillingRecordUploadView(APIView):
 
         try:
             result = self.upload_service.upload(uploaded_file)
+
+        except OCRRuntimeUnavailable as error:
+            return Response({"code": error.code, "message": str(error)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         except (UnsupportedFileTypeError, EmptyFileError) as error:
             return Response(

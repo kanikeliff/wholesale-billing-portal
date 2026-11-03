@@ -674,11 +674,11 @@ export default function UploadPage() {
         {uploadStatus === "success" &&
           backendRecord && (
             <section className="upload-card">
-              <div className="upload-success-banner">
+              <div className={ocrFailed ? "upload-error" : "upload-success-banner"} role={ocrFailed ? "alert" : "status"}>
                 {ocrPending
                   ? "BOL uploaded and saved. OCR is still processing."
                   : ocrFailed
-                  ? "BOL uploaded and saved. OCR could not complete."
+                  ? `BOL uploaded and saved. OCR failed: ${backendRecord.ocrJob?.errorMessage || "No extraction was produced."}`
                   : "BOL processed and saved by the backend successfully."}
               </div>
 

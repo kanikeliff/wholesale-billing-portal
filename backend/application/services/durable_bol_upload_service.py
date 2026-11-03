@@ -6,6 +6,7 @@ from django.db import transaction
 
 from apps.billing.models import BillingRecord
 from apps.persistence.models import OCRJob
+from infrastructure.ocr.runtime_configuration import get_ocr_provider, ensure_live_worker_ready
 
 from application.services.bol_upload_service import (
     BOLUploadService,
@@ -35,6 +36,10 @@ class DurableBOLUploadService:
             file_bytes=file_bytes,
         )
 
+        provider = get_ocr_provider()
+        if provider == "live":
+            ensure_live_worker_ready()
+
         document_id = str(uuid.uuid4())
         stored_path = None
 
@@ -63,6 +68,8 @@ class DurableBOLUploadService:
                 job = OCRJob.objects.create(
                     document_id=document_id,
                     status=OCRJob.Status.PENDING,
+                    max_attempts=1 if provider == "live" else 3,
+                    raw_result={"requestedProvider": provider},
                 )
 
             return {
@@ -71,6 +78,7 @@ class DurableBOLUploadService:
                 "jobId": str(job.job_id),
                 "status": record.status,
                 "ocrStatus": job.status,
+                "ocrProvider": provider,
                 "documentUrl": document["documentUrl"],
             }
 

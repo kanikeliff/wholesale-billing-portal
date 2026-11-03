@@ -140,6 +140,22 @@ class OCRJobWorkerTests(TestCase):
         self.job.refresh_from_db()
         self.assertEqual(self.job.attempt_count, 0)
 
+    def test_sample_worker_cannot_claim_a_live_upload(self):
+        self.job.raw_result = {"requestedProvider": "live"}
+        self.job.save()
+        self.worker.provider = "sample"
+        self.assertIsNone(self.worker.process_next_job())
+        self.extractor.assert_not_called()
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.attempt_count, 0)
+
+    def test_live_worker_cannot_claim_a_sample_upload(self):
+        self.job.raw_result = {"requestedProvider": "sample"}
+        self.job.save()
+        self.worker.provider = "live"
+        self.assertIsNone(self.worker.process_next_job())
+        self.extractor.assert_not_called()
+
     def test_failed_extraction_schedules_retry(self):
         self.extractor.side_effect = TimeoutError("OCR timeout")
 
@@ -153,6 +169,34 @@ class OCRJobWorkerTests(TestCase):
         self.assertEqual(self.job.attempt_count, 1)
         self.assertIsNotNone(self.job.next_retry_at)
         self.assertEqual(self.record.status, "OCR_PROCESSING")
+
+    def test_non_retryable_ocr_error_stops_after_one_attempt(self):
+        from infrastructure.ocr.live_ocr_client import LiveOCRError
+        self.extractor.side_effect = LiveOCRError("INVALID_API_KEY", "Invalid worker credentials.")
+        with self.assertRaises(LiveOCRError):
+            self.worker.process_next_job()
+        self.job.refresh_from_db()
+        self.record.refresh_from_db()
+        self.assertEqual(self.job.status, OCRJob.Status.FAILED)
+        self.assertEqual(self.job.attempt_count, 1)
+        self.assertEqual(self.job.error_code, "INVALID_API_KEY")
+        self.assertIsNone(self.job.next_retry_at)
+        self.assertEqual(self.record.status, "EXCEPTION")
+
+    def test_live_review_evidence_is_persisted_without_changing_ocr_values(self):
+        extraction = self.extractor.return_value
+        extraction["carrier"] = "Printed carrier"
+        flag = {"code": "LOW_CONFIDENCE", "field": "carrier", "message": "Review evidence."}
+        self.extractor.return_value = {"extraction": extraction,
+            "ocrReviewFlags": [flag], "metadata": {"liveOCR": {"provider": "live"}}}
+        self.worker.process_next_job()
+        field = ExtractedField.objects.get(billing_record=self.record, field_name="carrier")
+        self.assertEqual(field.raw_value, "Printed carrier")
+        self.assertEqual(field.normalized_value, "Printed carrier")
+        self.assertEqual(field.quality, "LOW_CONFIDENCE")
+        self.assertIsNone(field.confidence)
+        self.assertEqual(field.metadata["reviewEvidence"], [flag])
+        self.assertEqual(field.metadata["source"], "ocr_live")
 
     def test_exhausted_attempts_moves_record_to_exception(self):
         self.job.max_attempts = 1

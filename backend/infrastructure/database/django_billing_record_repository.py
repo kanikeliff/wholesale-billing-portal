@@ -343,8 +343,16 @@ class DjangoBillingRecordRepository(BillingRecordRepository):
             if target is not None:
                 target["isCorrected"] = True
 
+        from apps.persistence.models import OCRJob
+        latest_job = OCRJob.objects.filter(document__billing_record=record).order_by("-created_at").first()
+        ocr_job = ({
+            "jobId": str(latest_job.job_id), "status": latest_job.status,
+            "errorCode": latest_job.error_code, "errorMessage": latest_job.error_message,
+        } if latest_job else None)
+
         return {
             "recordId": str(record.record_id),
+            "ocrJob": ocr_job,
             "status": record.status,
             "fields": fields,
             "lineItems": line_items,

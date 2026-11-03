@@ -1,6 +1,11 @@
 import os
 from pathlib import Path
 
+from .local_environment import load_team_a_environment
+from .public_origins import public_portal_origins
+
+load_team_a_environment()
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = "dev-only-secret-key"
@@ -90,12 +95,14 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
+    *public_portal_origins(),
 ]
 
 CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
+    *public_portal_origins(),
 ]
 
 MEDIA_URL = "/media/"

@@ -8,7 +8,7 @@ from application.services.ocr_job_worker import OCRJobWorker
 
 
 class Command(BaseCommand):
-    help = "Process pending OCR jobs using saved, SHA-256-matched sample extractions."
+    help = "Process OCR jobs with OCR_PROVIDER=sample (default) or live."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -37,9 +37,15 @@ class Command(BaseCommand):
         if options["job_id"] and not options["once"]:
             raise CommandError("--job-id requires --once.")
 
-        from infrastructure.ocr.sample_package_ocr_client import SamplePackageOCRClient
+        from infrastructure.ocr.runtime_configuration import get_ocr_provider, read_runtime_config, write_worker_state
+        provider = get_ocr_provider()
+        if provider == "live" and not (options["once"] and options["job_id"]):
+            if not read_runtime_config().get("budgetLedger"):
+                raise CommandError("Live OCR requires a shared budget ledger or --once --job-id.")
 
-        worker = OCRJobWorker(extractor=SamplePackageOCRClient().submit_document)
+        from infrastructure.ocr.ocr_factory import build_ocr_extractor
+        worker = OCRJobWorker(extractor=build_ocr_extractor(), provider=provider)
+        write_worker_state(provider)
 
         self.stdout.write("OCR worker started.")
 

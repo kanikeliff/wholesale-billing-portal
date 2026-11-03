@@ -1,5 +1,5 @@
 import react from "@vitejs/plugin-react";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { readFileSync, readdirSync } from "node:fs";
@@ -34,18 +34,27 @@ function pdfAssets(): Plugin {
   };
 }
 
-export default defineConfig({
-  plugins: [react(), pdfAssets()],
-  server: {
-    proxy: {
-      "/api": {
-        target: "http://127.0.0.1:8000",
-        changeOrigin: true,
-      },
-      "/media": {
-        target: "http://127.0.0.1:8000",
-        changeOrigin: true,
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "PORTAL_");
+  const allowedHosts = (env.PORTAL_PUBLIC_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+    .map((origin) => new URL(origin).hostname);
+  return {
+    plugins: [react(), pdfAssets()],
+    server: {
+      allowedHosts,
+      proxy: {
+        "/api": {
+          target: "http://127.0.0.1:8000",
+          changeOrigin: true,
+        },
+        "/media": {
+          target: "http://127.0.0.1:8000",
+          changeOrigin: true,
+        },
       },
     },
-  },
+  };
 });

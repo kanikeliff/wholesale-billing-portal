@@ -67,11 +67,18 @@ class TeamAClient:
 
             except requests.RequestException as exc:
                 raise TeamAIntegrationError(
-                    f"Team A request failed: {exc}"
+                    "Team A network request failed.",
+                    code="TEAM_A_NETWORK_ERROR",
                 ) from exc
 
             if 200 <= response.status_code < 300:
-                return response.json()
+                try:
+                    return response.json()
+                except ValueError:
+                    raise TeamAIntegrationError(
+                        "Team A returned invalid JSON.",
+                        code="TEAM_A_INVALID_RESPONSE",
+                    ) from None
 
             if 400 <= response.status_code < 500:
                 self._raise_non_retryable(response)
@@ -102,6 +109,9 @@ class TeamAClient:
         except ValueError:
             body = {}
 
+        if not isinstance(body, dict):
+            body = {}
+
         code = body.get("code", "TEAM_A_ERROR")
         message = body.get(
             "message",
@@ -109,5 +119,8 @@ class TeamAClient:
         )
 
         raise TeamAIntegrationError(
-            f"{code}: {message}"
+            str(message).replace(self.api_key, "[REDACTED]"),
+            code=str(code).replace(self.api_key, "[REDACTED]"),
+            details={"upstreamStatus": response.status_code},
+            status_code=response.status_code,
         )

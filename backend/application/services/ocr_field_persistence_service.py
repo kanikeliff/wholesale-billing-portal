@@ -45,10 +45,11 @@ class OCRFieldPersistenceService:
                     quality=(
                         ExtractedField.Quality.MISSING
                         if field.get("unresolved")
-                        else ExtractedField.Quality.OK
+                        else field.get("quality", ExtractedField.Quality.OK)
                     ),
                     metadata={
-                        "source": source
+                        "source": source,
+                        **({"reviewEvidence": field["reviewEvidence"]} if field.get("reviewEvidence") else {}),
                     },
                 )
             )

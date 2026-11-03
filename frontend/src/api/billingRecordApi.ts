@@ -72,6 +72,12 @@ export interface Recommendation {
 }
 
 export interface BillingRecord {
+  ocrJob?: {
+    jobId: string;
+    status: string;
+    errorCode: string | null;
+    errorMessage: string | null;
+  } | null;
   recordId: string;
   status: string;
 

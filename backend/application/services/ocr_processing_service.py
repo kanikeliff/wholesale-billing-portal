@@ -50,8 +50,11 @@ class OCRProcessingService:
             "canonical": canonical,
         }
 
-    def persist_extraction_for_record(self, record_id, extraction):
+    def persist_extraction_for_record(self, record_id, extraction, *, review_flags=None):
         canonical = self.adapter.adapt(extraction)
+        if review_flags:
+            from infrastructure.ocr.review_flags import apply_review_flags
+            canonical = apply_review_flags(canonical, review_flags)
 
         fields = canonical["fields"]
         line_items = canonical["lineItems"]

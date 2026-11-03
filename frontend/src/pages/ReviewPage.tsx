@@ -352,7 +352,7 @@ const refreshRecommendation = async () => {
 
   // Only submit changed fields. Do not silently save mock/fallback data.
   const saveChanges = async () => {
-    if (!record || saving || !hasChanges) return;
+    if (!record || saving || !hasChanges || !["OCR_COMPLETE", "NEEDS_REVIEW", "RECOMMENDATION_READY", "RECOMMENDATION_PENDING"].includes(record.status)) return;
     const original = createDraft(record);
     const modifiedKeys = Object.keys(draft).filter(
       (key) => draft[key] !== original[key]
@@ -584,7 +584,7 @@ const handleDecision = async (decision: HumanDecision) => {
           onChange={(event) =>
             updateDraft(key, event.target.value)
           }
-          disabled={saving}
+          disabled={saving || record?.status === "EXCEPTION"}
         />
 
         <div className="review-field-meta">
@@ -662,9 +662,11 @@ const handleDecision = async (decision: HumanDecision) => {
     bolImageMap[bolNumber] ||
     "";
 
-  const documentUrl = rawDocumentUrl.startsWith("/media/")
-    ? `http://127.0.0.1:8000${rawDocumentUrl}`
-    : rawDocumentUrl;
+  // Local backend media travels through the same Vite/tunnel origin as the API.
+  const documentUrl = rawDocumentUrl.replace(
+    /^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?(?=\/media\/)/i,
+    ""
+  );
 
   const documentFileName =
     record.document?.originalFilename ||
@@ -713,6 +715,12 @@ const handleDecision = async (decision: HumanDecision) => {
       </div>
 
 
+
+      {record.ocrJob?.status === "FAILED" && (
+        <div className="review-message" role="alert">
+          OCR failed: {record.ocrJob.errorMessage || "No extraction was produced for this document."}
+        </div>
+      )}
 
       {/* THREE-PANEL WORKSPACE */}
 
@@ -1028,7 +1036,7 @@ const handleDecision = async (decision: HumanDecision) => {
 
               <button
                 className="review-btn review-btn-primary"
-                disabled={!hasChanges || saving}
+                disabled={!hasChanges || saving || !["OCR_COMPLETE", "NEEDS_REVIEW", "RECOMMENDATION_READY", "RECOMMENDATION_PENDING"].includes(record.status)}
                 onClick={saveChanges}
 
               >

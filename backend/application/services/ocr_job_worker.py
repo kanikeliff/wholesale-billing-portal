@@ -23,8 +23,9 @@ from infrastructure.ocr.bol_lab_adapter import BolLabAdapter
 
 class OCRJobWorker:
 
-    def __init__(self, extractor):
+    def __init__(self, extractor, *, provider=None):
         self.extractor = extractor
+        self.provider = provider
 
         self.processing_service = OCRProcessingService(
             adapter=BolLabAdapter(),
@@ -102,6 +103,13 @@ class OCRJobWorker:
 
             if job_id is not None:
                 queryset = queryset.filter(job_id=job_id)
+
+            if self.provider == "live":
+                queryset = queryset.filter(raw_result__requestedProvider="live")
+            elif self.provider == "sample":
+                queryset = queryset.filter(
+                    Q(raw_result__requestedProvider="sample") | ~Q(raw_result__has_key="requestedProvider")
+                )
 
             job = queryset.order_by("created_at").first()
 
@@ -205,6 +213,7 @@ class OCRJobWorker:
                     .persist_extraction_for_record(
                         current_job.document.billing_record_id,
                         extraction,
+                        review_flags=review_flags,
                     )
                 )
 
@@ -214,7 +223,7 @@ class OCRJobWorker:
                     record_id=persisted["recordId"],
                     document_id=current_job.document_id,
                     canonical=persisted["canonical"],
-                    source="ocr_pipeline",
+                    source=("ocr_live" if result.get("metadata", {}).get("liveOCR") else "ocr_pipeline"),
                 )
 
 
@@ -266,11 +275,11 @@ class OCRJobWorker:
                 ):
                     return None
 
-                current_job.error_code = type(exc).__name__
+                current_job.error_code = getattr(exc, "code", type(exc).__name__)
                 current_job.error_message = str(exc)[:2000]
 
                 # Stop retrying once the attempt limit is reached.
-                if current_job.attempt_count >= current_job.max_attempts:
+                if getattr(exc, "retryable", None) is False or current_job.attempt_count >= current_job.max_attempts:
                     current_job.status = OCRJob.Status.FAILED
                     current_job.next_retry_at = None
 

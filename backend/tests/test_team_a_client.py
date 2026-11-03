@@ -79,6 +79,25 @@ class TeamAClientTests(SimpleTestCase):
             1,
         )
 
+    def test_auth_failure_keeps_upstream_status_and_redacts_credential(self):
+        self.session.post.return_value = self.response(401, {
+            "code": "UNAUTHORIZED", "message": "Rejected secret-key",
+        })
+        with self.assertRaises(TeamAIntegrationError) as caught:
+            self.client.evaluate(self.payload)
+        self.assertEqual(caught.exception.code, "UNAUTHORIZED")
+        self.assertEqual(caught.exception.details, {"upstreamStatus": 401})
+        self.assertFalse(caught.exception.retryable)
+        self.assertNotIn(self.client.api_key, str(caught.exception))
+        self.assertEqual(self.session.post.call_count, 1)
+
+    def test_success_with_invalid_json_is_an_integration_error(self):
+        self.session.post.return_value = self.response(200, {})
+        self.session.post.return_value.json.side_effect = ValueError("invalid JSON")
+        with self.assertRaises(TeamAIntegrationError) as caught:
+            self.client.evaluate(self.payload)
+        self.assertEqual(caught.exception.code, "TEAM_A_INVALID_RESPONSE")
+
     def test_503_is_retried(self):
         self.session.post.side_effect = [
             self.response(503, {}),

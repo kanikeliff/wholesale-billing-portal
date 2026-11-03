@@ -58,7 +58,7 @@ def sample_record():
         },
         "lineItems": [
             {
-                "lineItemId": 1,
+                "lineItemId": "unit-line-1",
                 "product": {
                     "normalizedValue": "RUL 87 ETH",
                     "confidence": 0.91,
@@ -94,7 +94,9 @@ def successful_response():
         "rationale": "Record requires review.",
         "mappedEntities": {
             "carrierCode": "CR-ABC-01",
-            "lineItems": [],
+            "lineItems": [{
+                "lineItemId": "unit-line-1", "e3StockId": None, "standardName": None,
+            }],
         },
         "exceptionIndicators": [
             {
@@ -102,7 +104,7 @@ def successful_response():
                 "severity": "WARNING",
                 "message": "Gross gallon difference exceeds tolerance.",
                 "field": "grossGallons",
-                "lineItemId": 1,
+                "lineItemId": "unit-line-1",
             }
         ],
     }
@@ -157,6 +159,14 @@ class TeamAMapperTests(TestCase):
 
 
 class TeamAAdapterTests(TestCase):
+
+    def test_mapped_line_item_identity_must_match_request(self):
+        response = successful_response()
+        response["mappedEntities"]["lineItems"][0]["lineItemId"] = "different-line"
+        adapter = TeamAAdapter(FakeTeamAClient(response))
+        with self.assertRaises(IntegrationException) as caught:
+            adapter.evaluate(sample_record())
+        self.assertEqual(caught.exception.code, "TEAM_A_INVALID_RESPONSE")
 
     def test_successful_response_is_returned(self):
         client = FakeTeamAClient(

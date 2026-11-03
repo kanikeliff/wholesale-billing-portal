@@ -102,6 +102,7 @@ function mount(page, api) {
     field(key) { return find(n => n.props?.className?.startsWith('review-field ') &&
       nodes(n).some(child => child.type === 'input' && child.props.id === key)).props; },
     text() { return content(tree); },
+    documentLink() { return find(n => n.type === 'a' && n.props.className === 'review-document-link').props; },
     navigate(next) { id = next; render(); },
     unmount() { for (const slot of slots) slot.cleanup?.(); },
   };
@@ -255,4 +256,41 @@ test('failed refresh after PATCH retains edits and does not claim a verified sav
   assert.equal(page.input('carrier').value, 'Unsure if saved');
   assert.ok(page.text().includes('refreshing the record failed'));
   assert.ok(!page.text().includes('saved and confirmed')); page.unmount();
+});
+
+
+test('failed OCR shows its cause in Review Workspace and prevents empty corrections', async () => {
+  const record = billingRecord('EXCEPTION');
+  record.ocrJob = { jobId: 'job-1', status: 'FAILED', errorCode: 'OCR_FAILED', errorMessage: 'OCR could not read this document.' };
+  const page = mount('ReviewPage', { getBillingRecord: async () => record });
+  await page.flush();
+  assert.ok(page.text().includes('OCR failed: OCR could not read this document.'));
+  assert.equal(page.input('carrier').disabled, true);
+  assert.equal(page.button('Save Changes').disabled, true);
+  page.unmount();
+});
+
+test('failed OCR upload displays its stored error instead of a success message', async () => {
+  const record = billingRecord('EXCEPTION');
+  record.ocrJob = { jobId: 'job-1', status: 'FAILED', errorCode: 'OCR_FAILED', errorMessage: 'Provider could not complete OCR.' };
+  const page = mount('UploadPage', {
+    uploadBillingRecord: async () => ({ recordId: 'rec-1' }),
+    getBillingRecord: async () => record,
+  });
+  page.input('bol-file').onChange({ target: { files: [{ name: 'sample.pdf', type: 'application/pdf', size: 100 }] } });
+  page.render(); await page.button('Upload & Process BOL').onClick(); page.render();
+  assert.ok(page.text().includes('OCR failed: Provider could not complete OCR.'));
+  assert.ok(!page.text().includes('BOL processed and saved by the backend successfully.'));
+  page.unmount();
+});
+
+
+test('review document URLs stay on the public frontend origin', async () => {
+  for (const url of ['/media/bols/source.pdf', 'http://127.0.0.1:8000/media/bols/source.pdf', 'http://localhost:8000/media/bols/source.pdf']) {
+    const record = billingRecord(); record.document = { documentUrl: url, originalFilename: 'source.pdf' };
+    const page = mount('ReviewPage', { getBillingRecord: async () => record });
+    await page.flush();
+    assert.equal(page.documentLink().href, '/media/bols/source.pdf');
+    page.unmount();
+  }
 });
