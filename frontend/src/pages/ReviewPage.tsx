@@ -593,7 +593,7 @@ const handleDecision = async (decision: HumanDecision) => {
         />
 
         <div className="review-field-meta">
-          <span>OCR Confidence</span>
+          <span>Model certainty (uncalibrated)</span>
 
           <span
             className={`review-confidence ${

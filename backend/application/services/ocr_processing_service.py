@@ -50,8 +50,11 @@ class OCRProcessingService:
             "canonical": canonical,
         }
 
-    def persist_extraction_for_record(self, record_id, extraction, *, review_flags=None):
+    def persist_extraction_for_record(self, record_id, extraction, *, review_flags=None, confidence_source=None):
         canonical = self.adapter.adapt(extraction)
+        if confidence_source is not None:
+            from mirabito_ocr import apply_confidence_to_canonical
+            canonical = apply_confidence_to_canonical(canonical, confidence_source)
         if review_flags:
             from infrastructure.ocr.review_flags import apply_review_flags
             canonical = apply_review_flags(canonical, review_flags)

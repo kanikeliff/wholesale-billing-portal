@@ -4,10 +4,14 @@
 manifest-matched PDFs and needs no model key or live OCR package.
 
 `OCR_PROVIDER=live` uses the standalone handoff pinned to commit
-`fd02fdd3420142e21a9270c9679f137c50e7f6b1`, package `mirabito-ocr` 0.2.0.
+`f89b403573e05b6ee8815dba81711dbd7677e416`, package `mirabito-ocr` 0.3.0.
 The approved source TAR SHA-256 is
-`10fe42b1aa87e8e515a52a7062fdc2055b08462ded460357a5e9e33d1e46a8b1`.
-Install that verified source package into the worker's Python environment;
+`42fc51fd015613594f38d91153f12c33a18ffda45d230bf9760b6f9bec9f2066`.
+The supplied wheel SHA-256 is
+`deb02a5c5bf6421888e6572d431352819c6bd10f782ce1bf25fd3be213715af1`.
+Verify the artifact, stop an idle worker, then install the supplied wheel with
+`python -m pip install --no-index --no-deps /path/to/mirabito_ocr-0.3.0-py3-none-any.whl`.
+Install into the actual worker's Python environment;
 the package is not assumed to be available from a public package registry.
 Installed runtime file hashes must match `live_package_manifest.json`.
 
@@ -20,6 +24,7 @@ Worker variables (not read from the Team A `.env` loader):
 | Variable | Default / allowed test setting |
 | --- | --- |
 | `OCR_PROVIDER` | `sample` or explicitly `live` |
+| `OCR_INCLUDE_CONFIDENCE` | `false`; explicitly set `true` in the live worker environment for numeric certainty |
 | `OCR_OPENAI_MODEL` | `gpt-6.1-sol` |
 | `OCR_MAX_OUTPUT_TOKENS` | `8192`, cannot exceed 8192 in live mode |
 | `OCR_API_TIMEOUT_SECONDS` | `240` per provider request |
@@ -97,6 +102,79 @@ contain business evidence, no API headers, and are not a result cache.
 Normalization, stable database line-item IDs, source document storage and
 frontend structure are unchanged. Existing field metadata stores applicable
 review evidence and `LOW_CONFIDENCE` quality while preserving missing states,
-original OCR values, and null numeric confidence. Product-code evidence never
+original OCR values, and null numeric confidence in legacy/sample mode. Product-code evidence never
 becomes an E3 ID. Provider public error codes/retryability are preserved; a
 verification failure never becomes a successfully completed extraction.
+
+## Opt-in numeric certainty
+
+```sh
+OCR_PROVIDER=live OCR_INCLUDE_CONFIDENCE=true python backend/manage.py run_ocr_worker \
+  --settings=config.settings_database --interval 1
+```
+
+Restart the idle worker after changing the package or opt-in setting. A variable
+exported in another terminal does not update an already-running worker. Worker
+registration and successful job metadata report `includeConfidence` for audits.
+Leave this variable unset or `false` to retain the unchanged legacy request.
+The sample provider does not require the live package and continues returning
+null confidence when the saved extraction has no numeric evidence.
+
+Numeric mode requests model-reported Top-K alternatives in the extraction call.
+It can change newly extracted values and output-token usage; grounding and blind
+rereading still run, within the existing maximum three generation calls.
+After adaptation, the pinned helper binds scores to the extraction hash, exact
+raw candidates and product row order. Mismatches fail instead of silently
+attaching scores. Existing review flags are applied afterwards and remain
+authoritative, including when a flagged field has 99% certainty.
+
+The existing confidence column stores each eligible score. Existing JSON field
+metadata retains `confidenceMetadata`, including method, extraction hash and
+`calibrated=false`. Missing/unreadable/invalid or normalization-unresolved values
+keep null scores. Product-code scores remain separate from E3 IDs. No thresholds,
+schema migrations, automatic approvals or backfills of old records are added.
+Review displays **Model certainty (uncalibrated)**; null still shows Unavailable.
+Team A recommendation confidence remains a separate existing field.
+
+`tests/fixtures/ocr_samples/Sample_BOL_3_numeric_certainty.json` contains selected,
+unchanged fields from the OCR team's recorded pilot, with artifact provenance.
+Bridge tests replay this fixture against an isolated test database; they do not
+constitute a new live app test or evidence of calibrated accuracy. A fresh paid
+upload must be reported separately with its new record and inference provenance.
+
+### Local app verification for this bridge
+
+The approved fresh upload created record `212927cc-a7d4-41a4-b219-45f2211c87a4`
+and job `0bd03282-2aa5-4584-884e-88be543361bd`. It used the real 0.3.0 pipeline,
+three fresh generation responses, no application cache, and took 20.75 seconds.
+Its $0.83604 conservative reservation was below the explicitly approved $1 test
+cap; this is not an invoice or an exact billed amount.
+
+Upload returned HTTP 201. Record detail, reload and the unchanged source PDF
+returned HTTP 200. PostgreSQL retained 12 numeric scores and three null scores
+(Contract/Lifting and both E3 IDs), with method metadata and an OCR audit event.
+The record remained NEEDS_REVIEW with two product rows. BOL Number and Origin
+each retained a LOW_CONFIDENCE warning alongside 99% model certainty. Snapshots
+of all pre-existing business records and their associated data were unchanged.
+The user confirmed the scores, missing-field warnings and label in the browser
+after refreshing. The normal opt-in worker was restored after the bounded test.
+No Team A evaluation was sent.
+
+Automated verification: 51 extractor tests, 187 Django tests, 24 frontend tests,
+and the frontend production build passed. The standalone extractor tests need
+repository fixtures outside the source archive; those were supplied in staging
+without modifying the pinned package runtime files.
+
+Files changed for this bridge:
+
+- `backend/infrastructure/ocr/live_ocr_client.py`
+- `backend/infrastructure/ocr/live_package_manifest.json`
+- `backend/infrastructure/ocr/runtime_configuration.py`
+- `backend/application/services/ocr_job_worker.py`
+- `backend/application/services/ocr_processing_service.py`
+- `backend/application/services/ocr_field_persistence_service.py`
+- `backend/tests/test_numeric_confidence_bridge.py`
+- `backend/tests/fixtures/ocr_samples/Sample_BOL_3_numeric_certainty.json`
+- `frontend/src/pages/ReviewPage.tsx`
+- `frontend/tests/workflow.test.cjs`
+- `docs/workflows/live-ocr-integration.md`

@@ -214,6 +214,7 @@ class OCRJobWorker:
                         current_job.document.billing_record_id,
                         extraction,
                         review_flags=review_flags,
+                        confidence_source=result if isinstance(result.get("fieldConfidence"), dict) else None,
                     )
                 )
 

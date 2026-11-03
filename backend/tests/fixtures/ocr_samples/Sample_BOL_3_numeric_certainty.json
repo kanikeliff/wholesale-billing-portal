@@ -1,0 +1,94 @@
+{
+  "extraction": {
+    "products": [
+      {
+        "product": "87 10% ETHANOL",
+        "product_code": "403100",
+        "net_gallons": "7473",
+        "gross_gallons": "7500",
+        "e3_stock_id": null
+      },
+      {
+        "product": "93 10% ETHANOL",
+        "product_code": "403400",
+        "net_gallons": "990",
+        "gross_gallons": "1000",
+        "e3_stock_id": null
+      }
+    ],
+    "bol_number": "0000831062",
+    "contract_number": null,
+    "origin": "ETP SYRACUSE - 34015",
+    "supplier": "MONROE ENERGY LLC",
+    "carrier": "MIRABITO ENERGY PRODUCTS",
+    "transaction_date": "2026-09-17",
+    "destination": "CONTRACT VARIOUS NY"
+  },
+  "fieldConfidence": {
+    "/bol_number": 0.99,
+    "/contract_number": null,
+    "/origin": 0.99,
+    "/supplier": 0.99,
+    "/carrier": 0.99,
+    "/transaction_date": 0.99,
+    "/destination": 0.9,
+    "/products/0/product": 0.98,
+    "/products/0/product_code": 0.99,
+    "/products/0/net_gallons": 0.99,
+    "/products/0/gross_gallons": 0.99,
+    "/products/0/e3_stock_id": null,
+    "/products/1/product": 0.98,
+    "/products/1/product_code": 0.99,
+    "/products/1/net_gallons": 0.99,
+    "/products/1/gross_gallons": 0.99,
+    "/products/1/e3_stock_id": null
+  },
+  "confidenceMetadata": {
+    "method": "model-reported-topk-v1",
+    "kind": "model_reported_certainty",
+    "scale": "0-1",
+    "calibrated": false,
+    "scoreStage": "extraction",
+    "verificationChangesNumericScores": false,
+    "autoApprovalEnabled": false,
+    "extractionSha256": "372f2d1efae415a25b78e64d9cf065de9a84df629de8a52868b3efe293862e81",
+    "displayLabel": "Model certainty (uncalibrated)",
+    "interpretation": "Self-reported certainty, not a validated correctness probability. Review flags take precedence."
+  },
+  "ocrReviewFlags": [
+    {
+      "code": "LOW_CONFIDENCE",
+      "severity": "WARNING",
+      "field": "origin",
+      "sourceField": "/origin",
+      "source": "gpt_evidence_verification",
+      "message": "Extracted value and blind evidence reading disagree.",
+      "confidence": null,
+      "reason": "Explicitly labeled SHIPMENT OF ORIGIN."
+    },
+    {
+      "code": "LOW_CONFIDENCE",
+      "severity": "WARNING",
+      "field": "destination",
+      "sourceField": "/destination",
+      "source": "gpt_evidence_verification",
+      "message": "Extracted value and blind evidence reading disagree.",
+      "confidence": null,
+      "reason": "Printed under SHIP TO."
+    }
+  ],
+  "verification": {
+    "status": "COMPLETED",
+    "reviewRequired": true,
+    "confidenceAvailable": true,
+    "method": "VERDICT-inspired-GPT-only-adaptation",
+    "calibratedConfidenceAvailable": false,
+    "confidenceMethod": "model-reported-topk-v1"
+  },
+  "_fixtureProvenance": {
+    "description": "Selected, unchanged fields from the OCR team recorded pilot; offline test fixture, not an app inference.",
+    "artifact": "sample-3.numeric.actual-live.json",
+    "artifactSha256": "616f04b67368a1ac810005410e5e295da49a4491f174cd280d0c479f0cbd920b",
+    "handoffCommit": "f89b403573e05b6ee8815dba81711dbd7677e416"
+  }
+}

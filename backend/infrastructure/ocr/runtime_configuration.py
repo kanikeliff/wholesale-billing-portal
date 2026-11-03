@@ -43,6 +43,13 @@ def is_budget_enforced():
     return value == "true"
 
 
+def is_numeric_confidence_enabled():
+    value = os.getenv("OCR_INCLUDE_CONFIDENCE", "false").strip().lower()
+    if value not in ("true", "false"):
+        raise OCRRuntimeUnavailable("OCR_CONFIGURATION_ERROR", "OCR_INCLUDE_CONFIDENCE must be true or false.")
+    return value == "true"
+
+
 def read_private_key(path):
     path = Path(path)
     info = path.stat()
@@ -79,5 +86,6 @@ def write_worker_state(provider):
     config = read_runtime_config()
     if provider == "live" and config.get("workerState"):
         path = Path(config["workerState"])
-        path.write_text(json.dumps({"pid": os.getpid(), "provider": provider, "budgetEnforced": is_budget_enforced()}))
+        path.write_text(json.dumps({"pid": os.getpid(), "provider": provider,
+            "budgetEnforced": is_budget_enforced(), "includeConfidence": is_numeric_confidence_enabled()}))
         os.chmod(path, 0o600)

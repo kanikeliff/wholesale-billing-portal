@@ -14,8 +14,8 @@ from uuid import uuid4
 import requests
 
 
-SOURCE_COMMIT = "fd02fdd3420142e21a9270c9679f137c50e7f6b1"
-SOURCE_ARCHIVE_SHA256 = "10fe42b1aa87e8e515a52a7062fdc2055b08462ded460357a5e9e33d1e46a8b1"
+SOURCE_COMMIT = "f89b403573e05b6ee8815dba81711dbd7677e416"
+SOURCE_ARCHIVE_SHA256 = "42fc51fd015613594f38d91153f12c33a18ffda45d230bf9760b6f9bec9f2066"
 _transport_lock = threading.Lock()
 
 
@@ -139,7 +139,7 @@ class LiveOCRClient:
     def __init__(self):
         import mirabito_ocr
         from mirabito_ocr.config import Settings
-        if importlib.metadata.version("mirabito-ocr") != "0.2.0":
+        if importlib.metadata.version("mirabito-ocr") != "0.3.0":
             raise LiveOCRError("OCR_PACKAGE_MISMATCH", "Install the verified OCR handoff version.")
         manifest = json.loads(Path(__file__).with_name("live_package_manifest.json").read_text())
         package_root = Path(mirabito_ocr.__file__).parent
@@ -147,8 +147,9 @@ class LiveOCRClient:
             path = package_root / name
             if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != checksum:
                 raise LiveOCRError("OCR_PACKAGE_MISMATCH", "Installed OCR source does not match the pinned handoff.")
-        from .runtime_configuration import read_runtime_config, read_private_key, is_budget_enforced
+        from .runtime_configuration import read_runtime_config, read_private_key, is_budget_enforced, is_numeric_confidence_enabled
         config = read_runtime_config()
+        self.include_confidence = is_numeric_confidence_enabled()
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key and config.get("keyFile"):
             api_key = read_private_key(config["keyFile"])
@@ -197,7 +198,7 @@ class LiveOCRClient:
 
         with _transport_lock, patch.object(client, "post_response", guarded), patch.object(verification, "post_response", guarded):
             self.budget.calls = []  # Three requests per document; dollars remain shared.
-            result = GPTBolPipeline(self.settings).extract_bytes(
+            result = GPTBolPipeline(self.settings, include_confidence=self.include_confidence).extract_bytes(
                 file_bytes, filename=filename, document_id=document_id,
                 checkpoint_dir=checkpoint_parent / "stages",
             )
@@ -205,6 +206,7 @@ class LiveOCRClient:
             "provider": "live", "sourceCommit": SOURCE_COMMIT,
             "sourceArchiveSha256": SOURCE_ARCHIVE_SHA256, "runId": run_id,
             "applicationCacheUsed": False,
+            "includeConfidence": self.include_confidence,
             "budgetEnforced": self.budget.enforce_limit,
             "budgetUSD": str(self.budget.limit) if self.budget.enforce_limit else None,
             "reservedUSD": str(self.budget.reserved), "requests": self.budget.calls,

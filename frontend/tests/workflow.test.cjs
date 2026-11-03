@@ -515,3 +515,18 @@ test('recommendation API uses the authenticated Team B endpoint and waits for it
   assert.equal(calls[1].options.headers.has('X-API-Key'), false);
   assert.deepEqual(timeouts, [15000, 150000]);
 });
+
+test('uncalibrated model certainty never hides OCR review warnings or invents missing scores', async () => {
+  const record = billingRecord('NEEDS_REVIEW');
+  record.fields.origin.confidence = 0.99;
+  record.fields.origin.quality = 'LOW_CONFIDENCE';
+  const page = mount('ReviewPage', { getBillingRecord: async () => structuredClone(record) });
+  await page.flush();
+  assert.ok(page.text().includes('Model certainty (uncalibrated)'));
+  assert.ok(page.text().includes('99%'));
+  assert.ok(page.field('origin').className.includes('warning'));
+  assert.ok(page.field('contractLifting').className.includes('warning'));
+  assert.ok(page.text().includes('Unavailable'));
+  assert.ok(!page.text().includes('OCR Confidence'));
+  page.unmount();
+});

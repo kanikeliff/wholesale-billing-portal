@@ -50,6 +50,7 @@ class OCRFieldPersistenceService:
                     metadata={
                         "source": source,
                         **({"reviewEvidence": field["reviewEvidence"]} if field.get("reviewEvidence") else {}),
+                        **({"confidenceMetadata": field["confidenceMetadata"]} if isinstance(field.get("confidenceMetadata"), dict) else {}),
                     },
                 )
             )
