@@ -18,7 +18,14 @@ PORTAL_PUBLIC_ORIGINS=https://YOUR-EXACT-TUNNEL-HOST python backend/manage.py ru
   127.0.0.1:8000 --settings=config.settings_database
 ```
 
-Run `npm run dev` from `frontend`. The explicit origin configures Vite's host
+For sharing with another computer, run `npm run demo` from `frontend`. This builds
+the frontend and serves the compiled assets on port 5173 with the same API/media
+proxy. It avoids sending individual development modules and HMR over the tunnel.
+Rebuild/restart after code changes. Use `npm run dev` for local development.
+Both commands use port 5173 and stop with an error if it is already occupied;
+do not run both simultaneously or forward an automatically chosen alternate port.
+
+The explicit origin configures Vite's host
 allowlist and Django's trusted CSRF/CORS origins. Wildcards are not enabled;
 session authentication and CSRF checks remain active. Changing the public URL
 requires updating the local configuration and restarting the services.

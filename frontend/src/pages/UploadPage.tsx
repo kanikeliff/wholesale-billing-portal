@@ -1,6 +1,6 @@
 import BolPdfViewer from "../components/BolPdfViewer";
-import { uploadBillingRecord } from "../api/uploadApi";
-import { useEffect, useState, type ChangeEvent } from "react";
+import { uploadBillingRecord, type UploadBillingRecordResponse } from "../api/uploadApi";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Link } from "react-router-dom";
 
 import {
@@ -11,7 +11,6 @@ import {
 type UploadStatus =
   | "idle"
   | "uploading"
-  | "processing"
   | "success"
   | "error";
 
@@ -46,25 +45,27 @@ export default function UploadPage() {
     useState<UploadStatus>("idle");
 
   const [errorMessage, setErrorMessage] = useState("");
+  const [savedUpload, setSavedUpload] = useState<UploadBillingRecordResponse | null>(null);
+  const [refreshError, setRefreshError] = useState("");
+  const uploadGeneration = useRef(0);
   const [backendRecord, setBackendRecord] =
     useState<BillingRecord | null>(null);
+  const shouldRefresh = !!savedUpload && (!backendRecord ||
+    ["UPLOADED", "OCR_PROCESSING"].includes(backendRecord.status));
 
-  // Refresh the saved record while OCR is still processing.
+  useEffect(() => () => { uploadGeneration.current++; }, []);
+
+  // A 201 upload response is sufficient to open Review; OCR runs independently.
   useEffect(() => {
-    const recordId = backendRecord?.recordId;
-    const status = backendRecord?.status;
-
-    if (
-      !recordId ||
-      !["UPLOADED", "OCR_PROCESSING"].includes(status ?? "")
-    ) {
+    const recordId = savedUpload?.recordId;
+    if (!recordId || !shouldRefresh) {
       return;
     }
 
     let active = true;
     let fetching = false;
 
-    const interval = window.setInterval(async () => {
+    const refresh = async () => {
       if (fetching) return;
 
       fetching = true;
@@ -73,28 +74,27 @@ export default function UploadPage() {
         const updated = await getBillingRecord(recordId);
 
         if (active) {
-          setBackendRecord(current =>
-            current?.recordId === recordId ? updated : current
-          );
+          setBackendRecord(updated);
+          setRefreshError("");
         }
-      } catch (error) {
-        console.error("OCR refresh failed:", error);
+      } catch {
+        if (active) setRefreshError("Your file is saved, but its latest OCR status could not be loaded. Open Review Workspace or check your connection; do not upload again.");
       } finally {
         fetching = false;
       }
-    }, 2000);
+    };
+    void refresh();
+    const interval = window.setInterval(refresh, 2000);
 
     return () => {
       active = false;
       window.clearInterval(interval);
     };
-  }, [backendRecord?.recordId, backendRecord?.status]);
+  }, [savedUpload?.recordId, shouldRefresh]);
 
-  const isProcessing =
-    uploadStatus === "uploading" ||
-    uploadStatus === "processing";
+  const isProcessing = uploadStatus === "uploading";
 
-  const ocrPending = ["UPLOADED", "OCR_PROCESSING"].includes(backendRecord?.status ?? "");
+  const ocrPending = ["UPLOADED", "OCR_PROCESSING"].includes(backendRecord?.status ?? savedUpload?.status ?? "");
   const ocrFailed = backendRecord?.status === "EXCEPTION";
 
   // File validation: PDF, JPG, JPEG and PNG.
@@ -103,7 +103,10 @@ export default function UploadPage() {
   ) => {
     const file = event.target.files?.[0];
 
+    uploadGeneration.current++;
     setSelectedFile(null);
+    setSavedUpload(null);
+    setRefreshError("");
     setBackendRecord(null);
     setUploadStatus("idle");
     setErrorMessage("");
@@ -144,22 +147,20 @@ export default function UploadPage() {
   
   // Upload the selected document. Never substitute a seeded/mock billing record.
   const handleUpload = async () => {
-    if (!selectedFile || isProcessing) return;
+    if (!selectedFile || isProcessing || savedUpload) return;
 
+    const generation = ++uploadGeneration.current;
     setErrorMessage("");
     setBackendRecord(null);
     setUploadStatus("uploading");
 
     try {
       const result = await uploadBillingRecord(selectedFile);
-
-      setUploadStatus("processing");
-
-      const savedRecord = await getBillingRecord(result.recordId);
-
-      setBackendRecord(savedRecord);
+      if (generation !== uploadGeneration.current) return;
+      setSavedUpload(result);
       setUploadStatus("success");
     } catch (error) {
+      if (generation !== uploadGeneration.current) return;
       console.error("BOL upload failed:", error);
       setUploadStatus("error");
       setErrorMessage(
@@ -177,8 +178,6 @@ export default function UploadPage() {
     const statusLabel =
     uploadStatus === "uploading"
       ? "Uploading BOL"
-      : uploadStatus === "processing"
-      ? "Loading Saved Record"
       : uploadStatus === "success"
       ? "BOL Uploaded Successfully"
       : uploadStatus === "error"
@@ -616,10 +615,10 @@ export default function UploadPage() {
               type="button"
               className="upload-button"
               onClick={handleUpload}
-              disabled={!selectedFile || isProcessing}
+              disabled={!selectedFile || isProcessing || !!savedUpload}
             >
               {isProcessing
-                ? "Uploading / processing..."
+                ? "Uploading BOL..."
                 : "Upload & Process BOL"}
             </button>
 
@@ -649,14 +648,17 @@ export default function UploadPage() {
                 <p>
                   {uploadStatus === "uploading"
                     ? "Sending the selected BOL document to the backend..."
-                    : uploadStatus === "processing"
-                    ? "Retrieving the saved billing record..."
                     : ocrPending
                     ? "Upload saved. OCR is still processing; you can open Review Workspace now."
                     : ocrFailed
                     ? "OCR could not complete. Open Review Workspace to inspect the record."
                     : "The billing record is ready for review."}
                 </p>
+                {savedUpload && !backendRecord && (
+                  <Link to={`/records/${savedUpload.recordId}/review`} className="upload-back">
+                    Review Document →
+                  </Link>
+                )}
               </div>
             )}
 
@@ -667,6 +669,9 @@ export default function UploadPage() {
                 {errorMessage}
               </div>
             </div>
+          )}
+          {refreshError && (
+            <div className="upload-error" role="alert">{refreshError}</div>
           )}
         </section>
 

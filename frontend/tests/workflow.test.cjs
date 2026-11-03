@@ -10,11 +10,12 @@ const root = path.resolve(__dirname, '..');
 
 function load(relative, imports = {}, globals = {}) {
   const source = fs.readFileSync(path.join(root, relative), 'utf8')
-    .replace('import.meta.env.VITE_API_BASE_URL', '""');
+    .replace('import.meta.env.VITE_API_BASE_URL', '__API_BASE_URL__');
   const compiled = ts.transpileModule(source, { compilerOptions: {
     module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX,
   }}).outputText;
-  const context = { exports: {}, console: { error() {} }, ...globals,
+  const context = { exports: {}, console: { error() {} },
+    __API_BASE_URL__: '', AbortController, setTimeout, clearTimeout, ...globals,
     require(name) {
       if (name.endsWith('.css')) return {};
       assert.ok(name in imports, `Unexpected import: ${name}`);
@@ -57,6 +58,11 @@ function mount(page, api) {
   const slots = [], timers = new Map();
   let cursor = 0, effects = [], dirty = false, tree, timer = 0, id = 'rec-1';
   const react = {
+    useRef(value) {
+      const i = cursor++;
+      if (!slots[i]) slots[i] = { current: value };
+      return slots[i];
+    },
     useState(initial) {
       const i = cursor++;
       if (!slots[i]) slots[i] = { value: initial };
@@ -96,7 +102,7 @@ function mount(page, api) {
   render();
   return {
     timers, render,
-    async flush() { await new Promise(setImmediate); render(); },
+    async flush() { render(); await new Promise(setImmediate); render(); },
     input(key) { return find(n => n.type === 'input' && n.props.id === key).props; },
     button(label) { return find(n => n.type === 'button' && content(n) === label).props; },
     field(key) { return find(n => n.props?.className?.startsWith('review-field ') &&
@@ -198,7 +204,7 @@ test('UploadPage polls until OCR completes', async () => {
     getBillingRecord: async () => { calls++; return record; },
   });
   page.input('bol-file').onChange({ target: { files: [{ name: 'sample.pdf', type: 'application/pdf', size: 100 }] } });
-  page.render(); await page.button('Upload & Process BOL').onClick(); page.render();
+  page.render(); await page.button('Upload & Process BOL').onClick(); await page.flush();
   assert.equal(page.timers.size, 1); assert.ok(page.text().includes('OCR is still processing'));
   const pending = deferred(); record = pending.promise;
   const tick = [...page.timers.values()][0]; const active = tick(); await tick(); assert.equal(calls, 2);
@@ -234,7 +240,7 @@ test('UploadPage discards an in-flight poll after a new file selection', async (
   });
   const selection = name => ({ target: { files: [{ name, type: 'application/pdf', size: 100 }] } });
   page.input('bol-file').onChange(selection('first.pdf')); page.render();
-  await page.button('Upload & Process BOL').onClick(); page.render();
+  await page.button('Upload & Process BOL').onClick(); await page.flush();
   const request = deferred(); response = request.promise;
   const active = [...page.timers.values()][0]();
   page.input('bol-file').onChange(selection('second.pdf')); page.render();
@@ -278,7 +284,7 @@ test('failed OCR upload displays its stored error instead of a success message',
     getBillingRecord: async () => record,
   });
   page.input('bol-file').onChange({ target: { files: [{ name: 'sample.pdf', type: 'application/pdf', size: 100 }] } });
-  page.render(); await page.button('Upload & Process BOL').onClick(); page.render();
+  page.render(); await page.button('Upload & Process BOL').onClick(); await page.flush();
   assert.ok(page.text().includes('OCR failed: Provider could not complete OCR.'));
   assert.ok(!page.text().includes('BOL processed and saved by the backend successfully.'));
   page.unmount();
@@ -293,4 +299,96 @@ test('review document URLs stay on the public frontend origin', async () => {
     assert.equal(page.documentLink().href, '/media/bols/source.pdf');
     page.unmount();
   }
+});
+
+test('legacy loopback API configuration uses the public origin for CSRF and multipart upload', async () => {
+  for (const base of ['http://localhost:8000/api/v1/', 'http://127.0.0.1:8000/api/v1', 'http://[::1]:8000/api/v1']) {
+    const calls = [];
+    const api = load('src/api/apiClient.ts', {}, {
+      __API_BASE_URL__: base, Headers, FormData,
+      fetch: async (url, options) => {
+        calls.push({url, options});
+        return { ok: true, status: 200, json: async () => url.endsWith('/csrf/')
+          ? { csrfToken: 'test-token' } : { recordId: 'rec-1' } };
+      },
+    });
+    const upload = load('src/api/uploadApi.ts', { './apiClient': api }, { FormData });
+    await upload.uploadBillingRecord(new Blob(['test']));
+    assert.deepEqual(calls.map(c => c.url), ['/api/v1/auth/csrf/', '/api/v1/billing-records/upload/']);
+    assert.equal(calls[0].options.cache, 'no-store');
+    assert.equal(calls[1].options.headers.has('Content-Type'), false, 'browser supplies the multipart boundary');
+    assert.equal(calls[1].options.headers.get('X-CSRFToken'), 'test-token');
+    assert.equal(calls[1].options.credentials, 'include');
+  }
+});
+
+test('a stalled CSRF request times out before sending the upload', async () => {
+  const timers = new Map(), calls = [];
+  const api = load('src/api/apiClient.ts', {}, { Headers, FormData,
+    setTimeout(fn, ms) { timers.set(ms, fn); return ms; },
+    clearTimeout(ms) { timers.delete(ms); },
+    fetch: (url, { signal }) => {
+      calls.push(url);
+      return new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('aborted'))));
+    },
+  });
+  const request = api.apiRequest('/billing-records/upload/', { method: 'POST', body: new FormData() });
+  const rejected = assert.rejects(request, /within 15 seconds.*request has not been sent/);
+  timers.get(15000)(); await rejected;
+  assert.deepEqual(calls, ['/api/v1/auth/csrf/']); assert.equal(timers.size, 0);
+});
+
+test('a stalled upload response body times out without retrying an uncertain save', async () => {
+  const timers = new Map(), calls = [];
+  const api = load('src/api/apiClient.ts', {}, { Headers, FormData,
+    setTimeout(fn, ms) { timers.set(ms, fn); return ms; },
+    clearTimeout(ms) { timers.delete(ms); },
+    fetch: async (url, { signal }) => {
+      calls.push(url);
+      return { ok: true, status: 200, json: () => url.endsWith('/csrf/')
+        ? Promise.resolve({ csrfToken: 'test-token' })
+        : new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('aborted')))) };
+    },
+  });
+  const request = api.apiRequest('/billing-records/upload/', { method: 'POST', body: new FormData(), timeoutMs: 60000 });
+  const rejected = assert.rejects(request, /may already be saved.*Check the Dashboard/);
+  await new Promise(setImmediate); timers.get(60000)(); await rejected;
+  assert.equal(calls.length, 2); assert.equal(timers.size, 0);
+});
+
+test('upload receipt opens Review immediately while detail loading stalls, then recovers without another POST', async () => {
+  const pending = deferred(); let uploads = 0, response = pending.promise;
+  const page = mount('UploadPage', {
+    uploadBillingRecord: async () => { uploads++; return { recordId: 'rec-1', status: 'UPLOADED' }; },
+    getBillingRecord: async () => response,
+  });
+  page.input('bol-file').onChange({ target: { files: [{ name: 'test.pdf', type: 'application/pdf', size: 100 }] } });
+  page.render(); await page.button('Upload & Process BOL').onClick(); await page.flush();
+  assert.ok(page.text().includes('Billing record saved successfully'));
+  assert.ok(page.text().includes('Review Document →'));
+  assert.ok(!page.text().includes('Uploading BOL'));
+  assert.equal(page.button('Upload & Process BOL').disabled, true);
+  pending.resolve(Promise.reject(new Error('detail request timed out'))); await page.flush();
+  assert.ok(page.text().includes('Your file is saved, but its latest OCR status could not be loaded'));
+  response = billingRecord('NEEDS_REVIEW');
+  await [...page.timers.values()][0](); page.render();
+  assert.ok(page.text().includes('BOL processed and saved'));
+  assert.ok(!page.text().includes('could not be loaded'));
+  assert.equal(uploads, 1); assert.equal(page.timers.size, 0); page.unmount();
+});
+
+test('a late upload response does not replace a newly selected file', async () => {
+  const pending = deferred(); let details = 0;
+  const page = mount('UploadPage', {
+    uploadBillingRecord: () => pending.promise,
+    getBillingRecord: async () => { details++; return billingRecord(); },
+  });
+  const selection = name => ({ target: { files: [{ name, type: 'application/pdf', size: 100 }] } });
+  page.input('bol-file').onChange(selection('first.pdf')); page.render();
+  const upload = page.button('Upload & Process BOL').onClick(); page.render();
+  page.input('bol-file').onChange(selection('second.pdf')); page.render();
+  pending.resolve({ recordId: 'rec-1', status: 'UPLOADED' }); await upload; await page.flush();
+  assert.ok(page.text().includes('second.pdf'));
+  assert.ok(!page.text().includes('Billing record saved successfully'));
+  assert.equal(details, 0); assert.equal(page.timers.size, 0); page.unmount();
 });

@@ -20,6 +20,7 @@ export function uploadBillingRecord(
     {
       method: "POST",
       body: formData,
+      timeoutMs: 60000,
     }
   );
 }

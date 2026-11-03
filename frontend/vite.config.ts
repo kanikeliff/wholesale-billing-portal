@@ -41,20 +41,19 @@ export default defineConfig(({ mode }) => {
     .map((origin) => origin.trim())
     .filter(Boolean)
     .map((origin) => new URL(origin).hostname);
+  const localPortal = {
+    host: "127.0.0.1",
+    port: 5173,
+    strictPort: true,
+    allowedHosts,
+    proxy: {
+      "/api": { target: "http://127.0.0.1:8000", changeOrigin: true },
+      "/media": { target: "http://127.0.0.1:8000", changeOrigin: true },
+    },
+  };
   return {
     plugins: [react(), pdfAssets()],
-    server: {
-      allowedHosts,
-      proxy: {
-        "/api": {
-          target: "http://127.0.0.1:8000",
-          changeOrigin: true,
-        },
-        "/media": {
-          target: "http://127.0.0.1:8000",
-          changeOrigin: true,
-        },
-      },
-    },
+    server: localPortal,
+    preview: localPortal,
   };
 });
