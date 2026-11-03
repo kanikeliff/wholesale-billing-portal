@@ -392,3 +392,126 @@ test('a late upload response does not replace a newly selected file', async () =
   assert.ok(!page.text().includes('Billing record saved successfully'));
   assert.equal(details, 0); assert.equal(page.timers.size, 0); page.unmount();
 });
+
+function testRecommendation() {
+  return { recommendation: 'REVIEW_REQUIRED', confidence: null,
+    rationale: 'Test fixture: reviewer must check the mapping.', modelVersion: 'test-rules-v1',
+    matchedTerminalLogId: null,
+    mappedEntities: { carrierCode: 'TEST-CARRIER', lineItems: [
+      { lineItemId: 'line-1', e3StockId: 'TEST-E3', standardName: 'Test mapped product' },
+    ] },
+    exceptionIndicators: [{ code: 'TEST_MAPPING', severity: 'WARNING', message: 'Test mapping warning.' }],
+  };
+}
+
+test('saved Team A recommendation populates the detailed panel after page reload without evaluation', async () => {
+  const record = billingRecord('RECOMMENDATION_READY');
+  record.recommendation = testRecommendation(); let evaluations = 0;
+  for (let reload = 0; reload < 2; reload++) {
+    const page = mount('ReviewPage', {
+      getBillingRecord: async () => structuredClone(record),
+      evaluateBillingRecord: async () => { evaluations++; throw new Error('must not evaluate on load'); },
+    });
+    await page.flush();
+    for (const value of ['REVIEW REQUIRED', 'test-rules-v1', 'TEST-CARRIER', 'TEST-E3',
+      'Test mapped product', 'Test mapping warning.', 'Unavailable']) assert.ok(page.text().includes(value), value);
+    assert.equal(page.button('Refresh Recommendation').disabled, false); page.unmount();
+  }
+  assert.equal(evaluations, 0);
+});
+
+test('Get Recommendation submits once, shows the result, and preserves edits made during evaluation', async () => {
+  const pending = deferred(); const calls = []; const record = billingRecord('NEEDS_REVIEW');
+  const page = mount('ReviewPage', {
+    getBillingRecord: async () => structuredClone(record),
+    evaluateBillingRecord: async id => { calls.push(id); return pending.promise; },
+  });
+  await page.flush();
+  const request = page.button('Get Recommendation').onClick(); page.render();
+  assert.equal(page.button('Refreshing...').disabled, true);
+  page.input('carrier').onChange({ target: { value: 'Unsaved during evaluation' } }); page.render();
+  assert.equal(page.button('Save Changes').disabled, true);
+  Object.assign(record, { status: 'RECOMMENDATION_READY', recommendation: testRecommendation() });
+  pending.resolve({ recordId: 'rec-1', status: record.status, pending: false, recommendation: record.recommendation });
+  await request; page.render();
+  assert.deepEqual(calls, ['rec-1']);
+  assert.ok(page.text().includes('Test mapped product'));
+  assert.equal(page.input('carrier').value, 'Unsaved during evaluation');
+  assert.equal(page.button('Refresh Recommendation').disabled, true, 'save unsaved edits before another evaluation');
+  page.unmount();
+});
+
+test('a late evaluation response cannot populate another review record', async () => {
+  const pending = deferred(); let record = billingRecord('NEEDS_REVIEW');
+  const page = mount('ReviewPage', {
+    getBillingRecord: async () => record,
+    evaluateBillingRecord: () => pending.promise,
+  });
+  await page.flush(); const request = page.button('Get Recommendation').onClick(); page.render();
+  record = billingRecord('NEEDS_REVIEW', 'rec-2'); page.navigate('rec-2'); await page.flush();
+  pending.resolve({ recordId: 'rec-1', status: 'RECOMMENDATION_READY', pending: false, recommendation: testRecommendation() });
+  await request; page.render();
+  assert.ok(page.text().includes('rec-2')); assert.ok(!page.text().includes('Test mapped product'));
+  assert.equal(page.button('Get Recommendation').disabled, false); page.unmount();
+});
+
+test('retryable Team A response shows the backend cause and does not invent a recommendation or retry', async () => {
+  const record = billingRecord('NEEDS_REVIEW'); let calls = 0;
+  const page = mount('ReviewPage', {
+    getBillingRecord: async () => structuredClone(record),
+    evaluateBillingRecord: async () => {
+      calls++; record.status = 'RECOMMENDATION_PENDING';
+      return { recordId: 'rec-1', status: record.status, pending: true,
+        error: { code: 'TEAM_A_UNAVAILABLE', message: 'Test service unavailable.', retryable: true } };
+    },
+  });
+  await page.flush(); await page.button('Get Recommendation').onClick(); page.render();
+  assert.ok(page.text().includes('Test service unavailable.'));
+  assert.ok(page.text().includes('not returned a completed recommendation'));
+  assert.equal(calls, 1); assert.equal(page.timers.size, 0); page.unmount();
+});
+
+test('evaluation result stays visible if its follow-up GET fails, with a verification warning', async () => {
+  let reads = 0;
+  const page = mount('ReviewPage', {
+    getBillingRecord: async () => { if (reads++) throw new Error('offline'); return billingRecord('NEEDS_REVIEW'); },
+    evaluateBillingRecord: async () => ({ recordId: 'rec-1', status: 'RECOMMENDATION_READY', pending: false, recommendation: testRecommendation() }),
+  });
+  await page.flush(); await page.button('Get Recommendation').onClick(); page.render();
+  assert.ok(page.text().includes('Test mapped product'));
+  assert.ok(page.text().includes('reloading the saved record failed'));
+  page.unmount();
+});
+
+test('recommendation action respects OCR and final workflow states', async () => {
+  for (const status of ['UPLOADED', 'OCR_PROCESSING', 'EXCEPTION', 'APPROVED', 'REJECTED']) {
+    let calls = 0;
+    const page = mount('ReviewPage', {
+      getBillingRecord: async () => billingRecord(status),
+      evaluateBillingRecord: async () => { calls++; },
+    });
+    await page.flush();
+    assert.equal(page.button('Get Recommendation').disabled, true);
+    await page.button('Get Recommendation').onClick(); assert.equal(calls, 0); page.unmount();
+  }
+});
+
+test('recommendation API uses the authenticated Team B endpoint and waits for its existing retry window', async () => {
+  const calls = [], timeouts = [];
+  const api = load('src/api/apiClient.ts', {}, { Headers, FormData,
+    setTimeout(fn, ms) { timeouts.push(ms); return ms; }, clearTimeout() {},
+    fetch: async (url, options) => {
+      calls.push({ url, options });
+      return { ok: true, status: 200, json: async () => url.endsWith('/csrf/')
+        ? { csrfToken: 'test-token' } : { recordId: 'rec/1', status: 'RECOMMENDATION_READY', pending: false, recommendation: testRecommendation() } };
+    },
+  });
+  const recommendations = load('src/api/recommendationApi.ts', { './apiClient': api });
+  const result = await recommendations.evaluateBillingRecord('rec/1');
+  assert.equal(result.recommendation.modelVersion, 'test-rules-v1');
+  assert.equal(calls[1].url, '/api/v1/billing-records/rec%2F1/evaluate/');
+  assert.equal(calls[1].options.method, 'POST'); assert.equal(calls[1].options.credentials, 'include');
+  assert.equal(calls[1].options.headers.get('X-CSRFToken'), 'test-token');
+  assert.equal(calls[1].options.headers.has('X-API-Key'), false);
+  assert.deepEqual(timeouts, [15000, 150000]);
+});

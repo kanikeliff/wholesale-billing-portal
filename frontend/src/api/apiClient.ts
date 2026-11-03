@@ -79,5 +79,7 @@ export async function apiRequest<T>(
     headers,
   }, timeoutMs, method === "POST" && path === "/billing-records/upload/"
     ? "Upload confirmation timed out. The file may already be saved. Check the Dashboard before uploading again."
+    : method === "POST" && path.endsWith("/evaluate/")
+    ? "Recommendation confirmation timed out. Reload this record to check for a saved result before requesting another evaluation."
     : "The backend did not respond in time. Check your connection. If you were saving changes, refresh the record to verify whether they were saved.");
 }

@@ -49,7 +49,9 @@ export interface Recommendation {
     | "APPROVE_RECOMMENDED"
     | "REVIEW_REQUIRED"
     | "REJECT_RECOMMENDED";
-  confidence: number;
+  confidence: number | null;
+  modelVersion?: string | null;
+  revision?: number;
   rationale: string;
   matchedTerminalLogId: string | null;
 

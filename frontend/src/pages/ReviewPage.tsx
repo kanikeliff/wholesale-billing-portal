@@ -1,7 +1,7 @@
 import "./ReviewPage.css";
 import { validateBillingRecord } from "../api/validationApi";
-import { evaluateBillingRecord } from "../api/recommendationApi";
-import { useEffect, useMemo, useState } from "react";
+import { evaluateBillingRecord, type EvaluationResponse } from "../api/recommendationApi";
+import { useEffect, useMemo, useRef, useState } from "react";
 import BolPdfViewer from "../components/BolPdfViewer";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -36,31 +36,6 @@ type ValidationResponse = {
   reviewFlags: ValidationIssue[];
   nextStatus: string;
 };
-
-type EvaluationResponse = {
-  recordId: string;
-  status: string;
-  pending: boolean;
-  recommendation: {
-    recordId?: string;
-    recommendation: string;
-    confidence: number | null;
-    modelVersion?: string;
-    rationale?: string;
-    matchedTerminalLogId?: string | null;
-    mappedEntities?: {
-      carrierCode?: string | null;
-      lineItems?: {
-        lineItemId: string | number;
-        e3StockId?: string | null;
-        standardName?: string | null;
-      }[];
-    };
-  } | null;
-};
-
-
-
 
 const shipmentFields: {
   key: FieldKey;
@@ -148,13 +123,20 @@ const [validationError, setValidationError] = useState("");
 const [evaluating, setEvaluating] = useState(false);
 
 const [evaluationResult, setEvaluationResult] =
-  useState<unknown>(null);
+  useState<EvaluationResponse | null>(null);
+const evaluationGeneration = useRef(0);
 
 const [evaluationError, setEvaluationError] = useState("");
 
 
   useEffect(() => {
     let active = true;
+    evaluationGeneration.current++;
+    setEvaluationResult(null);
+    setEvaluationError("");
+    setEvaluating(false);
+    setValidationResult(null);
+    setValidationError("");
 
     if (!id) {
       setLoading(false);
@@ -204,6 +186,7 @@ const [evaluationError, setEvaluationError] = useState("");
 
     return () => {
       active = false;
+      evaluationGeneration.current++;
     };
   }, [id]);
 
@@ -254,8 +237,14 @@ const [evaluationError, setEvaluationError] = useState("");
 
 const validation = validationResult as ValidationResponse | null;
 
-const evaluation =
-  evaluationResult as EvaluationResponse | null;
+const evaluation: EvaluationResponse | null =
+  evaluationResult?.recordId === record?.recordId ? evaluationResult :
+  record?.recommendation ? {
+    recordId: record.recordId,
+    status: record.status,
+    pending: record.status === "RECOMMENDATION_PENDING",
+    recommendation: record.recommendation,
+  } : null;
 
 const teamRecommendation = evaluation?.recommendation ?? null;
 
@@ -323,7 +312,9 @@ const refreshRecommendation = async () => {
     saving ||
     evaluating ||
     validating ||
-    hasChanges
+    hasChanges ||
+    submittingDecision ||
+    !["OCR_COMPLETE", "NEEDS_REVIEW", "RECOMMENDATION_PENDING", "RECOMMENDATION_READY"].includes(record.status)
   ) {
     return;
   }
@@ -331,28 +322,42 @@ const refreshRecommendation = async () => {
   setEvaluating(true);
   setEvaluationError("");
   setEvaluationResult(null);
+  const generation = ++evaluationGeneration.current;
 
   try {
     const result = await evaluateBillingRecord(record.recordId);
+    if (generation !== evaluationGeneration.current) return;
     setEvaluationResult(result);
+    setRecord(current => current?.recordId === result.recordId ? {
+      ...current,
+      status: result.status,
+      recommendation: result.recommendation ?? current.recommendation,
+    } : current);
 
-    const updatedRecord = await getBillingRecord(record.recordId);
-    setRecord(updatedRecord);
+    try {
+      const updatedRecord = await getBillingRecord(record.recordId);
+      if (generation !== evaluationGeneration.current) return;
+      setRecord(updatedRecord);
+    } catch {
+      if (generation !== evaluationGeneration.current) return;
+      setEvaluationError("Team B returned the evaluation result, but reloading the saved record failed. Reload this page to verify it before requesting another evaluation.");
+    }
   } catch (err) {
+    if (generation !== evaluationGeneration.current) return;
     setEvaluationError(
       err instanceof Error
         ? err.message
         : "Recommendation evaluation failed."
     );
   } finally {
-    setEvaluating(false);
+    if (generation === evaluationGeneration.current) setEvaluating(false);
   }
 };
 
 
   // Only submit changed fields. Do not silently save mock/fallback data.
   const saveChanges = async () => {
-    if (!record || saving || !hasChanges || !["OCR_COMPLETE", "NEEDS_REVIEW", "RECOMMENDATION_READY", "RECOMMENDATION_PENDING"].includes(record.status)) return;
+    if (!record || saving || evaluating || !hasChanges || !["OCR_COMPLETE", "NEEDS_REVIEW", "RECOMMENDATION_READY", "RECOMMENDATION_PENDING"].includes(record.status)) return;
     const original = createDraft(record);
     const modifiedKeys = Object.keys(draft).filter(
       (key) => draft[key] !== original[key]
@@ -946,6 +951,11 @@ const handleDecision = async (decision: HumanDecision) => {
 
               {recommendation ? (
                 <>
+                  {record.status === "RECOMMENDATION_PENDING" && (
+                    <p className="review-recommendation-note">
+                      Previous recommendation. An updated recommendation is required before approval.
+                    </p>
+                  )}
                   <p>
                     <strong>Recommendation:</strong>{" "}
                     {recommendation.recommendation}
@@ -980,8 +990,8 @@ const handleDecision = async (decision: HumanDecision) => {
                           .carrierCode ?? "Not available"}
                       </p>
 
-                      {recommendation.mappedEntities
-                        .lineItems.map((mappedItem) => (
+                      {(recommendation.mappedEntities
+                        .lineItems ?? []).map((mappedItem) => (
                           <div key={mappedItem.lineItemId}>
                             <p>
                               <strong>Line:</strong>{" "}
@@ -1004,7 +1014,7 @@ const handleDecision = async (decision: HumanDecision) => {
                     </>
                   )}
 
-                  {recommendation.exceptionIndicators.map(
+                  {(recommendation.exceptionIndicators ?? []).map(
                     (exception, index) => (
                       <p
                         key={`${exception.code}-${index}`}
@@ -1018,7 +1028,11 @@ const handleDecision = async (decision: HumanDecision) => {
                 </>
               ) : (
                 <p className="review-recommendation-note">
-                  No AI recommendation available yet.
+                  {record.status === "UPLOADED" || record.status === "OCR_PROCESSING"
+                    ? "Complete OCR before requesting a Team A recommendation."
+                    : record.status === "EXCEPTION"
+                    ? "Resolve the record exception before requesting a Team A recommendation."
+                    : "No saved Team A recommendation. Save any edits, then select Get Recommendation."}
                 </p>
               )}
             </div>
@@ -1036,7 +1050,7 @@ const handleDecision = async (decision: HumanDecision) => {
 
               <button
                 className="review-btn review-btn-primary"
-                disabled={!hasChanges || saving || !["OCR_COMPLETE", "NEEDS_REVIEW", "RECOMMENDATION_READY", "RECOMMENDATION_PENDING"].includes(record.status)}
+                disabled={!hasChanges || saving || evaluating || !["OCR_COMPLETE", "NEEDS_REVIEW", "RECOMMENDATION_READY", "RECOMMENDATION_PENDING"].includes(record.status)}
                 onClick={saveChanges}
 
               >
@@ -1058,11 +1072,13 @@ const handleDecision = async (decision: HumanDecision) => {
                     saving ||
             validating ||
             evaluating ||
-            hasChanges
+            hasChanges ||
+            submittingDecision ||
+            !["OCR_COMPLETE", "NEEDS_REVIEW", "RECOMMENDATION_PENDING", "RECOMMENDATION_READY"].includes(record.status)
             }
             onClick={refreshRecommendation}
             >
-            {evaluating ? "Refreshing..." : "Refresh Recommendation"}
+            {evaluating ? "Refreshing..." : record.recommendation ? "Refresh Recommendation" : "Get Recommendation"}
             </button>
 
             </div>
@@ -1201,8 +1217,9 @@ const handleDecision = async (decision: HumanDecision) => {
 
     {evaluation.pending ? (
       <p>
-        The recommendation is still being processed.
-        Refresh again later to check the updated result.
+        Team A has not returned a completed recommendation.
+        Use the recommendation button to retry when the service is available.
+        {evaluation.error?.message && <> {evaluation.error.message}</>}
       </p>
     ) : teamRecommendation ? (
       <>

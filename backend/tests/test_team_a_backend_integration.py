@@ -61,6 +61,16 @@ class TeamABackendIntegrationTests(APITestCase):
         payload = self.session.post.call_args.kwargs["json"]
         self.assertEqual([line["lineItemId"] for line in payload["lineItems"]],
                          [str(line.line_item_id) for line in self.lines])
+        # A page refresh reads the saved response; it must not evaluate again.
+        for _ in range(2):
+            detail = self.client.get(f"/api/v1/billing-records/{self.record.record_id}/")
+            self.assertEqual(detail.status_code, 200)
+            saved = detail.data["recommendation"]
+            self.assertEqual(saved["recommendation"], body["recommendation"])
+            self.assertEqual(saved["mappedEntities"], body["mappedEntities"])
+            self.assertEqual(saved["exceptionIndicators"], body["exceptionIndicators"])
+            self.assertEqual(saved["revision"], 1)
+        self.assertEqual(self.session.post.call_count, 1)
 
     def test_authentication_failure_is_controlled_and_not_persisted(self):
         self.upstream_response(401, {"code": "UNAUTHORIZED", "message": "Unauthorized"})
