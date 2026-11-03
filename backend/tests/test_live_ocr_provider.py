@@ -61,9 +61,12 @@ class OCRBudgetTests(SimpleTestCase):
                         {**self.payload(), "tools": [{"type": "web_search"}]}):
             with self.assertRaises(LiveOCRError):
                 InferenceBudget().reserve(payload, 1000)
-        for amount in ("5", "NaN", "Infinity", "0"):
+        for amount in ("-1", "NaN", "Infinity", "0"):
             with self.assertRaises(ValueError):
                 InferenceBudget(amount)
+
+    def test_an_explicit_budget_can_exceed_the_old_smoke_test_limit(self):
+        self.assertEqual(InferenceBudget("10").limit, 10)
 
     def test_shared_budget_survives_new_worker_instances(self):
         from pathlib import Path
@@ -89,6 +92,32 @@ class OCRBudgetTests(SimpleTestCase):
             self.assertEqual(json.loads(ledger.read_text())["reservedUSD"], "3.90")
             with self.assertRaises(LiveOCRError):
                 InferenceBudget("3", ledger_path=ledger)
+
+    def test_disabled_dollar_cap_preserves_history_and_generation_limit(self):
+        from pathlib import Path
+        import tempfile, json
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = Path(directory) / "budget.json"
+            previous = {"reservationId": "prior-test", "reservedUSD": "4", "status": "RECEIVED"}
+            ledger.write_text(json.dumps({"limitUSD": "4", "reservedUSD": "4", "calls": [previous]}))
+            budget = InferenceBudget("4", ledger_path=ledger, enforce_limit=False)
+            for _ in range(3):
+                budget.reserve(self.payload(), 1000)
+            with self.assertRaisesRegex(LiveOCRError, "request limit"):
+                budget.reserve(self.payload(), 1000)
+            stored = json.loads(ledger.read_text())
+            self.assertGreater(budget.reserved, 4)
+            self.assertEqual(stored["calls"][0], previous)
+            self.assertEqual(len(stored["calls"]), 4)
+            reloaded = InferenceBudget("4", ledger_path=ledger, enforce_limit=False)
+            self.assertEqual(reloaded.reserved, budget.reserved)
+
+    def test_disabled_cap_keeps_model_tier_and_output_restrictions(self):
+        for payload in ({**self.payload(), "model": "other"},
+                        {**self.payload(), "service_tier": "priority"},
+                        {**self.payload(), "max_output_tokens": 8193}):
+            with self.assertRaises(LiveOCRError):
+                InferenceBudget(enforce_limit=False).reserve(payload, 1000)
 
     @patch("infrastructure.ocr.live_ocr_client.requests.post")
     def test_token_preflight_failure_does_not_echo_provider_body(self, post):

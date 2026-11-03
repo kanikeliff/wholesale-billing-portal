@@ -1,4 +1,6 @@
 import os
+import json
+from pathlib import Path
 import tempfile
 from unittest.mock import patch
 
@@ -55,3 +57,21 @@ class LiveUploadRoutingTests(APITestCase):
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.data["code"], "OCR_BUDGET_EXHAUSTED")
         self.assertFalse(BillingRecord.objects.exists())
+
+    @patch.dict(os.environ, {"OCR_PROVIDER": "live", "OCR_ENFORCE_BUDGET": "false"})
+    def test_normal_upload_is_accepted_with_an_exhausted_legacy_test_budget(self):
+        with tempfile.TemporaryDirectory() as folder:
+            worker = Path(folder) / "worker.json"
+            ledger = Path(folder) / "budget.json"
+            worker.write_text(json.dumps({"pid": os.getpid(), "provider": "live", "budgetEnforced": False}))
+            ledger.write_text(json.dumps({"limitUSD": "4", "reservedUSD": "4.50"}))
+            before = ledger.read_bytes()
+            with patch("infrastructure.ocr.runtime_configuration.read_runtime_config", return_value={
+                "workerState": str(worker), "budgetLedger": str(ledger),
+            }):
+                response = self.upload()
+            self.assertEqual(response.status_code, 201)
+            job = OCRJob.objects.get(job_id=response.data["jobId"])
+            self.assertEqual(job.status, "PENDING")
+            self.assertEqual(job.attempt_count, 0)
+            self.assertEqual(ledger.read_bytes(), before)

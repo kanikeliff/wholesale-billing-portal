@@ -1,4 +1,4 @@
-"""Pinned three-stage OCR with a cumulative process budget and no retry/cache."""
+"""Pinned three-stage OCR with reservation tracking and an optional dollar cap."""
 import hashlib
 import importlib.metadata
 import json
@@ -53,10 +53,13 @@ class InferenceBudget:
     INPUT_USD_PER_MILLION = Decimal("20")
     OUTPUT_USD_PER_MILLION = Decimal("15")
 
-    def __init__(self, usd="4", max_calls=3, ledger_path=None):
+    def __init__(self, usd="4", max_calls=3, ledger_path=None, *, enforce_limit=True):
+        if type(enforce_limit) is not bool:
+            raise ValueError("Budget enforcement must be a boolean.")
+        self.enforce_limit = enforce_limit
         self.limit = Decimal(str(usd))
-        if not self.limit.is_finite() or not 0 < self.limit <= 4 or type(max_calls) is not int or not 1 <= max_calls <= 3:
-            raise ValueError("Live OCR allows a positive budget up to $4 and at most three generation requests.")
+        if not self.limit.is_finite() or self.limit <= 0 or type(max_calls) is not int or not 1 <= max_calls <= 3:
+            raise ValueError("Live OCR requires a positive budget threshold and at most three generation requests.")
         self.max_calls = max_calls
         self.reserved = Decimal("0")
         self.calls = []
@@ -75,7 +78,7 @@ class InferenceBudget:
             state = json.loads(self.ledger_path.read_text()) if self.ledger_path.exists() else {
                 "limitUSD": str(self.limit), "reservedUSD": "0", "calls": [],
             }
-            if Decimal(state["limitUSD"]) != self.limit:
+            if self.enforce_limit and Decimal(state["limitUSD"]) != self.limit:
                 raise LiveOCRError("OCR_BUDGET_LIMIT", "Shared OCR budget limits cannot be reset by restarting a worker.")
             yield state
             temporary = None
@@ -119,13 +122,13 @@ class InferenceBudget:
         if self.ledger_path:
             with self._locked_state() as state:
                 self.reserved = Decimal(state["reservedUSD"])
-                if self.reserved + reservation > self.limit:
+                if self.enforce_limit and self.reserved + reservation > self.limit:
                     raise LiveOCRError("OCR_BUDGET_LIMIT", "Request reservation would exceed the approved dollar budget.")
                 self.reserved += reservation
                 state["reservedUSD"] = str(self.reserved)
                 state["calls"].append(dict(call))
         else:
-            if self.reserved + reservation > self.limit:
+            if self.enforce_limit and self.reserved + reservation > self.limit:
                 raise LiveOCRError("OCR_BUDGET_LIMIT", "Request reservation would exceed the approved dollar budget.")
             self.reserved += reservation
         self.calls.append(call)
@@ -144,7 +147,7 @@ class LiveOCRClient:
             path = package_root / name
             if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != checksum:
                 raise LiveOCRError("OCR_PACKAGE_MISMATCH", "Installed OCR source does not match the pinned handoff.")
-        from .runtime_configuration import read_runtime_config, read_private_key
+        from .runtime_configuration import read_runtime_config, read_private_key, is_budget_enforced
         config = read_runtime_config()
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key and config.get("keyFile"):
@@ -160,6 +163,7 @@ class LiveOCRClient:
         self.budget = InferenceBudget(
             os.getenv("OCR_MAX_COST_USD", "4"), int(os.getenv("OCR_MAX_API_CALLS", "3")),
             ledger_path=os.getenv("OCR_BUDGET_LEDGER") or config.get("budgetLedger"),
+            enforce_limit=is_budget_enforced(),
         )
 
     def submit_document(self, *, document_id, file_bytes, filename):
@@ -200,7 +204,9 @@ class LiveOCRClient:
         result.setdefault("metadata", {})["liveOCR"] = {
             "provider": "live", "sourceCommit": SOURCE_COMMIT,
             "sourceArchiveSha256": SOURCE_ARCHIVE_SHA256, "runId": run_id,
-            "applicationCacheUsed": False, "budgetUSD": str(self.budget.limit),
+            "applicationCacheUsed": False,
+            "budgetEnforced": self.budget.enforce_limit,
+            "budgetUSD": str(self.budget.limit) if self.budget.enforce_limit else None,
             "reservedUSD": str(self.budget.reserved), "requests": self.budget.calls,
             "attemptReservedUSD": str(sum((Decimal(call["reservedUSD"]) for call in self.budget.calls), Decimal("0"))),
         }

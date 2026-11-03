@@ -24,7 +24,8 @@ Worker variables (not read from the Team A `.env` loader):
 | `OCR_MAX_OUTPUT_TOKENS` | `8192`, cannot exceed 8192 in live mode |
 | `OCR_API_TIMEOUT_SECONDS` | `240` per provider request |
 | `OCR_MAX_PAGES` | `1` |
-| `OCR_MAX_COST_USD` | `4`, positive and cannot exceed 4 |
+| `OCR_ENFORCE_BUDGET` | `false`; set `true` in both web and worker environments to re-enable the test cap |
+| `OCR_MAX_COST_USD` | `4`, optional test cap when enforcement is enabled |
 | `OCR_MAX_API_CALLS` | `3`, integer from 1 to 3 |
 
 For normal browser uploads, configure the local service once:
@@ -45,12 +46,20 @@ regression tests.
 Uploads record their requested provider in existing `OCRJob.raw_result` metadata.
 Workers filter by provider before claiming jobs, preventing sample workers from
 consuming live uploads. Live uploads get one attempt. A missing worker or low
-remaining budget returns HTTP 503 before creating a billing record; frontend
+remaining budget (only with `OCR_ENFORCE_BUDGET=true`) returns HTTP 503 before creating a billing record; frontend
 errors use the existing error styles. Failed records expose the public OCR error
 instead of showing unexplained empty review fields.
 
+The original $4 smoke-test cap is disabled by default for normal uploads. Paid
+OCR usage continues without that dollar cap; the model, output-token limits,
+one live job attempt and maximum three generation calls per document remain.
+The ledger continues tracking conservative reservations and keeps all history.
+For a bounded smoke test, set `OCR_ENFORCE_BUDGET=true` in both service environments.
+Changing this setting requires restarting both services; restarting never resets
+the ledger or creates a fresh budget.
+
 With a configured shared ledger, the worker can remain running and process normal
-uploads within the same approved $4 total. Without a shared ledger, ad hoc live
+uploads. Without a shared ledger, ad hoc live
 execution still requires `--once --job-id`:
 
 ```sh
@@ -67,8 +76,10 @@ generation request it counts the multimodal input using the provider token-count
 endpoint. It reserves `(input_tokens + 4096) * $20/M + max_output_tokens * $15/M`,
 conservative rates above the standard model rates checked on 2026-11-02. Only
 the standard tier and the approved model/output limits are allowed; tools are
-disallowed. Cumulative reservations and a generation-call limit are enforced
-before sending requests, including failed/ambiguous submissions. The configured shared budget survives worker restarts and coordinates processes
+disallowed. Reservations are tracked before sending requests, including
+failed/ambiguous submissions. The generation-call limit always applies; the
+cumulative dollar cap applies only with `OCR_ENFORCE_BUDGET=true`.
+The configured shared ledger survives worker restarts and coordinates processes
 with a file lock. It includes seeded prior reservations, but does not cover
 unrelated activity on the provider account.
 Reservations are not invoices or exact billing totals. Recheck published pricing

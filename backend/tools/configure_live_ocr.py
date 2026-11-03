@@ -36,7 +36,7 @@ def configure(key_file=None, seed_report=None):
     if not ledger.exists():
         previous = json.loads(Path(seed_report).read_text()) if seed_report else {}
         used = Decimal(str(previous.get("reservedUSD", "0")))
-        if not used.is_finite() or not 0 <= used <= 4:
+        if not used.is_finite() or used < 0:
             raise SystemExit("Invalid previous budget reservation.")
         private_write(ledger, json.dumps({"limitUSD": "4", "reservedUSD": str(used),
             "calls": previous.get("generationRequests", []), "seedRecordId": previous.get("recordId")}))
@@ -50,7 +50,8 @@ def configure(key_file=None, seed_report=None):
     if key_file and Path(key_file) != root / "api-key":
         Path(key_file).unlink()
     print("Live OCR configured outside the repository; credentials were not displayed.")
-    print("Shared budget limit: $4. Reserved so far: $" + state["reservedUSD"])
+    print("Tracked reservations so far: $" + state["reservedUSD"])
+    print("The $4 test cap is disabled by default. Set OCR_ENFORCE_BUDGET=true in both web and worker environments to enforce it.")
     print("Start the normal run_ocr_worker command; new uploads will use live OCR.")
 
 

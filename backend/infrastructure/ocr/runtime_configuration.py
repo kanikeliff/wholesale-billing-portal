@@ -36,6 +36,13 @@ def get_ocr_provider():
     return provider
 
 
+def is_budget_enforced():
+    value = os.getenv("OCR_ENFORCE_BUDGET", "false").strip().lower()
+    if value not in ("true", "false"):
+        raise OCRRuntimeUnavailable("OCR_CONFIGURATION_ERROR", "OCR_ENFORCE_BUDGET must be true or false.")
+    return value == "true"
+
+
 def read_private_key(path):
     path = Path(path)
     info = path.stat()
@@ -49,16 +56,22 @@ def read_private_key(path):
 
 def ensure_live_worker_ready():
     config = read_runtime_config()
+    enforce_budget = is_budget_enforced()
     try:
         state = json.loads(Path(config["workerState"]).read_text())
         os.kill(int(state["pid"]), 0)
         if state.get("provider") != "live":
             raise ValueError
-        ledger = json.loads(Path(config["budgetLedger"]).read_text())
-        remaining = Decimal(str(ledger["limitUSD"])) - Decimal(str(ledger["reservedUSD"]))
+        # Older workers enforced the cap unconditionally. Do not send a job to
+        # one until it has reloaded the same budget mode as the web service.
+        if state.get("budgetEnforced", True) != enforce_budget:
+            raise OCRRuntimeUnavailable("OCR_CONFIGURATION_ERROR", "OCR web and worker budget settings differ. Restart the OCR worker with the same OCR_ENFORCE_BUDGET setting.")
+        if enforce_budget:
+            ledger = json.loads(Path(config["budgetLedger"]).read_text())
+            remaining = Decimal(str(ledger["limitUSD"])) - Decimal(str(ledger["reservedUSD"]))
     except (KeyError, ValueError, OSError, TypeError):
         raise OCRRuntimeUnavailable("OCR_WORKER_UNAVAILABLE", "OCR is temporarily unavailable. Your file has not been uploaded; restart the OCR service and try again.") from None
-    if remaining < Decimal("0.90"):
+    if enforce_budget and remaining < Decimal("0.90"):
         raise OCRRuntimeUnavailable("OCR_BUDGET_EXHAUSTED", "The approved OCR test budget is too low for another document. No new inference was started.")
 
 
@@ -66,5 +79,5 @@ def write_worker_state(provider):
     config = read_runtime_config()
     if provider == "live" and config.get("workerState"):
         path = Path(config["workerState"])
-        path.write_text(json.dumps({"pid": os.getpid(), "provider": provider}))
+        path.write_text(json.dumps({"pid": os.getpid(), "provider": provider, "budgetEnforced": is_budget_enforced()}))
         os.chmod(path, 0o600)

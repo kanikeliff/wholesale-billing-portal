@@ -32,5 +32,7 @@ requires updating the local configuration and restarting the services.
 
 A tunnel is available only while the computer, Django, Vite, forwarding service
 and (for new OCR jobs) live OCR worker are running. It is not permanent hosting.
-The live OCR worker uses its separate, persistent approved budget; changing
-tunnel URLs or restarting the web server does not reset that budget.
+The live OCR worker keeps a separate persistent reservation ledger. The optional
+test dollar cap is enabled only with `OCR_ENFORCE_BUDGET=true` in both web and
+worker environments. Changing tunnel URLs or restarting services never resets
+the ledger. See `docs/workflows/live-ocr-integration.md` for cost controls.
