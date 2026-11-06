@@ -103,6 +103,35 @@ class TeamAClient:
             "Team A unavailable after retry exhaustion."
         ) from last_error
 
+    def send_feedback(self, payload):
+        """One outbox attempt; persistent retries belong to the feedback worker."""
+        try:
+            response = self.session.post(
+                f"{self.base_url}/api/v1/feedback/audit", json=payload,
+                headers={"X-API-Key": self.api_key, "Content-Type": "application/json"},
+                timeout=self.timeout,
+            )
+        except requests.RequestException:
+            raise TeamAUnavailableError("Team A feedback delivery unavailable.") from None
+        if response.status_code >= 500 or response.status_code in (408, 429):
+            raise TeamAUnavailableError("Team A feedback delivery temporarily unavailable.")
+        if not 200 <= response.status_code < 300:
+            self._raise_non_retryable(response)
+        try:
+            acknowledgment = response.json()
+        except ValueError:
+            acknowledgment = None
+        if (
+            not isinstance(acknowledgment, dict)
+            or acknowledgment.get("recordId") != payload["recordId"]
+            or type(acknowledgment.get("stored")) is not bool
+            or type(acknowledgment.get("entryId")) is not int
+            or acknowledgment["entryId"] < 1
+            or not isinstance(acknowledgment.get("warnings", []), list)
+        ):
+            raise TeamAUnavailableError("Team A returned an invalid feedback acknowledgment.")
+        return acknowledgment
+
     def _raise_non_retryable(self, response):
         try:
             body = response.json()

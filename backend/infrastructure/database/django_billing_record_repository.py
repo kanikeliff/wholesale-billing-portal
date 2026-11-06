@@ -350,9 +350,24 @@ class DjangoBillingRecordRepository(BillingRecordRepository):
             "errorCode": latest_job.error_code, "errorMessage": latest_job.error_message,
         } if latest_job else None)
 
+        latest_decision = record.human_decisions.order_by("-created_at", "-pk").first()
+        feedback = None
+        if latest_decision:
+            metadata = latest_decision.feedback_metadata or {}
+            feedback = {
+                "humanDecisionId": str(latest_decision.pk),
+                "status": latest_decision.feedback_status,
+                "attempts": metadata.get("attempts", 0),
+                "retryable": metadata.get("retryable", False),
+                "queued": "payload" in metadata,
+                "sentAt": latest_decision.feedback_sent_at.isoformat() if latest_decision.feedback_sent_at else None,
+                "errorCode": metadata.get("errorCode"),
+            }
+
         return {
             "recordId": str(record.record_id),
             "ocrJob": ocr_job,
+            "feedback": feedback,
             "status": record.status,
             "fields": fields,
             "lineItems": line_items,

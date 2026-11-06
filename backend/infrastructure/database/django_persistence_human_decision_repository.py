@@ -1,6 +1,7 @@
 from django.db import transaction
 from django.utils import timezone
 
+from application.services.feedback_payload import build_feedback_payload
 from apps.billing.models import BillingRecord
 from apps.persistence.models import AuditEvent, HumanDecision, Recommendation
 
@@ -27,6 +28,9 @@ class DjangoPersistenceHumanDecisionRepository:
         except (BillingRecord.DoesNotExist, ValueError):
             raise ValueError("Billing record not found.")
 
+        if record.status != previous_status:
+            raise ValueError("Billing record status changed; reload before deciding.")
+
         current_recommendation = (
             Recommendation.objects
             .filter(
@@ -45,6 +49,9 @@ class DjangoPersistenceHumanDecisionRepository:
             decided_by=decided_by,
             reason=reason,
             feedback_status=HumanDecision.FeedbackStatus.PENDING,
+            feedback_metadata={"payload": build_feedback_payload(
+                record, current_recommendation, decision, resulting_status,
+            ), "attempts": 0, "retryable": True},
         )
 
 
@@ -68,6 +75,9 @@ class DjangoPersistenceHumanDecisionRepository:
         except (BillingRecord.DoesNotExist, ValueError):
             raise ValueError("Billing record not found.")
 
+        if record.status != previous_status:
+            raise ValueError("Billing record status changed; reload before deciding.")
+
         current_recommendation = (
             Recommendation.objects
             .filter(
@@ -86,6 +96,9 @@ class DjangoPersistenceHumanDecisionRepository:
             decided_by=decided_by,
             reason=reason,
             feedback_status=HumanDecision.FeedbackStatus.PENDING,
+            feedback_metadata={"payload": build_feedback_payload(
+                record, current_recommendation, decision, resulting_status,
+            ), "attempts": 0, "retryable": True},
         )
 
         record.status = resulting_status

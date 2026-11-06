@@ -530,3 +530,22 @@ test('uncalibrated model certainty never hides OCR review warnings or invents mi
   assert.ok(!page.text().includes('OCR Confidence'));
   page.unmount();
 });
+
+test('feedback status distinguishes queued, retrying, rejected, delivered and historical decisions', async () => {
+  const cases = [
+    [{ status: 'PENDING', queued: true, retryable: true }, 'Queued for automatic delivery. Your decision is saved.'],
+    [{ status: 'FAILED', queued: true, retryable: true }, 'an automatic retry is queued'],
+    [{ status: 'FAILED', queued: true, retryable: false }, 'configuration or payload needs attention'],
+    [{ status: 'SENT', queued: true, retryable: false }, 'Delivered to Team A.'],
+    [{ status: 'PENDING', queued: false, retryable: false }, 'no automatic delivery queued'],
+  ];
+  for (const [feedback, expected] of cases) {
+    const record = billingRecord('APPROVED');
+    record.feedback = { humanDecisionId: 'test-decision', attempts: 1, sentAt: null, errorCode: null, ...feedback };
+    const page = mount('ReviewPage', { getBillingRecord: async () => record });
+    await page.flush();
+    assert.ok(page.text().includes(expected), expected);
+    assert.ok(page.button('Refresh delivery status'));
+    page.unmount();
+  }
+});

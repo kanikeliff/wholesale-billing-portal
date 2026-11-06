@@ -74,6 +74,15 @@ export interface Recommendation {
 }
 
 export interface BillingRecord {
+  feedback?: {
+    humanDecisionId: string;
+    status: "PENDING" | "FAILED" | "SENT";
+    attempts: number;
+    retryable: boolean;
+    queued: boolean;
+    sentAt: string | null;
+    errorCode: string | null;
+  } | null;
   ocrJob?: {
     jobId: string;
     status: string;

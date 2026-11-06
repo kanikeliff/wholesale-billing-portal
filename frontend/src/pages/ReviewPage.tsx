@@ -1160,6 +1160,24 @@ const handleDecision = async (decision: HumanDecision) => {
     </p>
   )}
 
+  {record.feedback && (
+    <div role="status" className="review-recommendation-note">
+      <strong>Team A feedback: </strong>
+      {record.feedback.status === "SENT"
+        ? "Delivered to Team A."
+        : !record.feedback.queued
+          ? "This earlier decision has no automatic delivery queued."
+          : record.feedback.status === "FAILED"
+            ? record.feedback.retryable
+              ? "Delivery failed; an automatic retry is queued. Your decision is saved."
+              : "Delivery rejected; configuration or payload needs attention. Your decision is saved."
+            : "Queued for automatic delivery. Your decision is saved."}
+      <button type="button" onClick={() => window.location.reload()}>
+        Refresh delivery status
+      </button>
+    </div>
+  )}
+
   <p className="review-recommendation-note">
     Decisions are submitted to Team B backend.
     Decisions use your authenticated reviewer identity.
