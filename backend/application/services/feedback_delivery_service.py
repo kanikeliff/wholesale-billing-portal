@@ -4,6 +4,7 @@ import uuid
 from datetime import timedelta
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.persistence.models import HumanDecision
@@ -30,30 +31,32 @@ class FeedbackDeliveryService:
     @transaction.atomic
     def claim(self, decision_id=None):
         now = timezone.now()
+        timestamp = now.timestamp()
         query = HumanDecision.objects.filter(
             feedback_status__in=["PENDING", "FAILED"],
             feedback_metadata__has_key="payload",
+        ).filter(
+            ~Q(feedback_metadata__has_key="retryable") | Q(feedback_metadata__retryable=True),
+        ).filter(
+            ~Q(feedback_metadata__has_key="leaseUntil") | Q(feedback_metadata__leaseUntil__lte=timestamp),
+        ).filter(
+            ~Q(feedback_metadata__has_key="nextAttemptAt") | Q(feedback_metadata__nextAttemptAt__lte=timestamp),
         ).order_by("created_at", "pk")
         if decision_id:
             query = query.filter(pk=decision_id)
-        # Short locks coordinate web/worker processes. A lease survives crashes.
-        for decision in query.select_for_update(skip_locked=True).iterator():
-            meta = dict(decision.feedback_metadata)
-            if not meta.get("retryable", True):
-                continue
-            if float(meta.get("leaseUntil", 0)) > now.timestamp():
-                continue
-            if float(meta.get("nextAttemptAt", 0)) > now.timestamp():
-                continue
-            token = str(uuid.uuid4())
-            meta.update({"leaseToken": token,
-                         "leaseUntil": (now + timedelta(seconds=self.LEASE_SECONDS)).timestamp(),
-                         "attempts": meta.get("attempts", 0) + 1,
-                         "lastAttemptAt": now.isoformat()})
-            decision.feedback_metadata = meta
-            decision.save(update_fields=["feedback_metadata"])
-            return decision.pk, token, meta["payload"]
-        return None
+        # LIMIT 1 avoids fetching/locking the retry backlog on every poll.
+        decision = query.select_for_update(skip_locked=True).first()
+        if decision is None:
+            return None
+        meta = dict(decision.feedback_metadata)
+        token = str(uuid.uuid4())
+        meta.update({"leaseToken": token,
+                     "leaseUntil": (now + timedelta(seconds=self.LEASE_SECONDS)).timestamp(),
+                     "attempts": meta.get("attempts", 0) + 1,
+                     "lastAttemptAt": now.isoformat()})
+        decision.feedback_metadata = meta
+        decision.save(update_fields=["feedback_metadata"])
+        return decision.pk, token, meta["payload"]
 
     def process_next(self, decision_id=None):
         claim = self.claim(decision_id)

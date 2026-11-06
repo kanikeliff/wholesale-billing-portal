@@ -1,8 +1,11 @@
 from datetime import date
 from decimal import Decimal
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import CharField, OuterRef, Prefetch, Subquery
+from django.db.models.functions import Cast, JSONObject
 
 from apps.billing.models import BillingRecord, LineItem
 from domain.repositories.billing_record_repository import BillingRecordRepository
@@ -83,32 +86,45 @@ class DjangoBillingRecordRepository(BillingRecordRepository):
 
         return record
 
-    def get_billing_record(self, record_id):
-        return (
-            BillingRecord.objects
-            .prefetch_related("line_items")
-            .get(record_id=record_id)
+    def _read_queryset(self):
+        # Keep the API shape while loading evidence for the entire batch once.
+        # The latest OCR summary excludes its potentially large raw_result JSON.
+        from apps.persistence.models import AuditEvent, ExtractedField, HumanDecision, OCRJob
+        latest_job = (
+            OCRJob.objects.filter(document__billing_record_id=OuterRef("pk"))
+            .order_by("-created_at", "-pk")
+            .annotate(summary=JSONObject(
+                jobId=Cast("job_id", output_field=CharField()), status="status",
+                errorCode="error_code", errorMessage="error_message",
+            )).values("summary")[:1]
         )
+        return BillingRecord.objects.annotate(
+            _read_ocr_job=Subquery(latest_job),
+        ).prefetch_related(
+            "line_items",
+            Prefetch("extracted_fields", queryset=ExtractedField.objects.only(
+                "billing_record_id", "line_item_id", "field_name", "raw_value", "confidence", "quality",
+            ).order_by("created_at", "pk"), to_attr="_read_extracted"),
+            Prefetch("audit_events", queryset=AuditEvent.objects.filter(
+                event_type="FIELD_CORRECTION",
+            ).only("billing_record_id", "field_name", "line_item_id"), to_attr="_read_corrections"),
+            Prefetch("human_decisions", queryset=HumanDecision.objects.only(
+                "billing_record_id", "feedback_status", "feedback_metadata", "feedback_sent_at",
+            ).order_by("-created_at", "-pk")[:1], to_attr="_read_decisions"),
+        )
+
+    def get_billing_record(self, record_id):
+        return self._read_queryset().get(record_id=record_id)
 
     def get_by_id(self, record_id):
         try:
             record = self.get_billing_record(record_id)
         except (BillingRecord.DoesNotExist, ValueError, ValidationError):
             return None
-
         return self._to_dict(record)
 
     def list_records(self):
-        records = (
-            BillingRecord.objects
-            .prefetch_related("line_items")
-            .order_by("-created_at")
-        )
-
-        return [
-            self._to_dict(record)
-            for record in records
-        ]
+        return [self._to_dict(record) for record in self._read_queryset().order_by("-created_at", "-pk")]
 
     def update_status(self, record_id, status):
         updated = BillingRecord.objects.filter(
@@ -300,11 +316,11 @@ class DjangoBillingRecordRepository(BillingRecordRepository):
             item["lineItemId"]: item for item in line_items
         }
 
-        extracted_fields = (
-            record.extracted_fields
-            .select_related("line_item")
-            .order_by("created_at", "pk")
-        )
+        extracted_fields = getattr(record, "_read_extracted", None)
+        if extracted_fields is None:
+            extracted_fields = record.extracted_fields.only(
+                "billing_record_id", "line_item_id", "field_name", "raw_value", "confidence", "quality",
+            ).order_by("created_at", "pk")
 
         for extracted in extracted_fields:
             if extracted.line_item_id is None:
@@ -332,25 +348,39 @@ class DjangoBillingRecordRepository(BillingRecordRepository):
 
         # Corrections resolve current review warnings without rewriting OCR
         # evidence. Scope by line item so correcting one line cannot hide another.
-        for correction in record.audit_events.filter(
-            event_type="FIELD_CORRECTION"
-        ).values("field_name", "line_item_id"):
-            if correction["line_item_id"] is None:
-                target = fields.get(correction["field_name"])
+        corrections = getattr(record, "_read_corrections", None)
+        if corrections is None:
+            corrections = record.audit_events.filter(event_type="FIELD_CORRECTION").only(
+                "billing_record_id", "field_name", "line_item_id",
+            )
+        for correction in corrections:
+            if correction.line_item_id is None:
+                target = fields.get(correction.field_name)
             else:
-                line = line_items_by_id.get(str(correction["line_item_id"]))
-                target = line.get(correction["field_name"]) if line else None
+                line = line_items_by_id.get(str(correction.line_item_id))
+                target = line.get(correction.field_name) if line else None
             if target is not None:
                 target["isCorrected"] = True
 
-        from apps.persistence.models import OCRJob
-        latest_job = OCRJob.objects.filter(document__billing_record=record).order_by("-created_at").first()
-        ocr_job = ({
-            "jobId": str(latest_job.job_id), "status": latest_job.status,
-            "errorCode": latest_job.error_code, "errorMessage": latest_job.error_message,
-        } if latest_job else None)
+        if hasattr(record, "_read_ocr_job"):
+            ocr_job = record._read_ocr_job
+            if ocr_job:
+                # SQLite casts UUIDs without hyphens; keep the public UUID format.
+                ocr_job["jobId"] = str(UUID(ocr_job["jobId"]))
+        else:
+            from apps.persistence.models import OCRJob
+            latest_job = OCRJob.objects.filter(document__billing_record=record).only(
+                "status", "error_code", "error_message",
+            ).order_by("-created_at", "-pk").first()
+            ocr_job = ({
+                "jobId": str(latest_job.pk), "status": latest_job.status,
+                "errorCode": latest_job.error_code, "errorMessage": latest_job.error_message,
+            } if latest_job else None)
 
-        latest_decision = record.human_decisions.order_by("-created_at", "-pk").first()
+        decisions = getattr(record, "_read_decisions", None)
+        latest_decision = (decisions[0] if decisions else None) if decisions is not None else (
+            record.human_decisions.order_by("-created_at", "-pk").first()
+        )
         feedback = None
         if latest_decision:
             metadata = latest_decision.feedback_metadata or {}
