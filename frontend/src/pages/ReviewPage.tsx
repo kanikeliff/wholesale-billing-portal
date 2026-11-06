@@ -1080,8 +1080,27 @@ const handleDecision = async (decision: HumanDecision) => {
             {/* REVIEW ACTIONS */}
 
             {correctionLockMessage && (
-              <div className="review-message review-message-info" role="status">
-                {correctionLockMessage}
+              <div
+                className={`review-message review-message-info${
+                  ["UPLOADED", "OCR_PROCESSING"].includes(record.status)
+                    ? " ocr-processing-status"
+                    : ""
+                }`}
+                role="status"
+                aria-live="polite"
+              >
+                {["UPLOADED", "OCR_PROCESSING"].includes(record.status) && (
+                  <span className="ocr-processing-spinner" aria-hidden="true" />
+                )}
+                <span>
+                  {correctionLockMessage}
+                  {["UPLOADED", "OCR_PROCESSING"].includes(record.status) && (
+                    <> Please wait while OCR finishes.</>
+                  )}
+                </span>
+                {["UPLOADED", "OCR_PROCESSING"].includes(record.status) && (
+                  <span className="ocr-sr-only">OCR is still processing.</span>
+                )}
               </div>
             )}
             <div className="review-actions">

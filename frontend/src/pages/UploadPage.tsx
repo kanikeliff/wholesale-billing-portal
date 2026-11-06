@@ -510,6 +510,12 @@ export default function UploadPage() {
           margin-bottom: 20px;
         }
 
+        .upload-success-banner.ocr-processing-status,
+        .upload-status .ocr-processing-status {
+          display: flex;
+          align-items: center;
+        }
+
         .upload-review-footer {
           display: flex;
           justify-content: flex-end;
@@ -645,14 +651,26 @@ export default function UploadPage() {
                     : "Processing document"}
                 </strong>
 
-                <p>
-                  {uploadStatus === "uploading"
-                    ? "Sending the selected BOL document to the backend..."
-                    : ocrPending
-                    ? "Upload saved. OCR is still processing; you can open Review Workspace now."
-                    : ocrFailed
-                    ? "OCR could not complete. Open Review Workspace to inspect the record."
-                    : "The billing record is ready for review."}
+                <p
+                  className={ocrPending ? "ocr-processing-status" : undefined}
+                  role={ocrPending ? "status" : undefined}
+                  aria-live={ocrPending ? "polite" : undefined}
+                >
+                  {ocrPending && (
+                    <span className="ocr-processing-spinner" aria-hidden="true" />
+                  )}
+                  <span>
+                    {uploadStatus === "uploading"
+                      ? "Sending the selected BOL document to the backend..."
+                      : ocrPending
+                      ? "Upload saved. OCR is still processing; you can open Review Workspace now."
+                      : ocrFailed
+                      ? "OCR could not complete. Open Review Workspace to inspect the record."
+                      : "The billing record is ready for review."}
+                  </span>
+                  {ocrPending && (
+                    <span className="ocr-sr-only">Please wait while OCR finishes.</span>
+                  )}
                 </p>
                 {savedUpload && !backendRecord && (
                   <Link to={`/records/${savedUpload.recordId}/review`} className="upload-back">
@@ -679,12 +697,28 @@ export default function UploadPage() {
         {uploadStatus === "success" &&
           backendRecord && (
             <section className="upload-card">
-              <div className={ocrFailed ? "upload-error" : "upload-success-banner"} role={ocrFailed ? "alert" : "status"}>
-                {ocrPending
-                  ? "BOL uploaded and saved. OCR is still processing."
-                  : ocrFailed
-                  ? `BOL uploaded and saved. OCR failed: ${backendRecord.ocrJob?.errorMessage || "No extraction was produced."}`
-                  : "BOL processed and saved by the backend successfully."}
+              <div
+                className={
+                  ocrFailed
+                    ? "upload-error"
+                    : `upload-success-banner${ocrPending ? " ocr-processing-status" : ""}`
+                }
+                role={ocrFailed ? "alert" : "status"}
+                aria-live={ocrPending ? "polite" : undefined}
+              >
+                {ocrPending && (
+                  <span className="ocr-processing-spinner" aria-hidden="true" />
+                )}
+                <span>
+                  {ocrPending
+                    ? "BOL uploaded and saved. OCR is still processing."
+                    : ocrFailed
+                    ? `BOL uploaded and saved. OCR failed: ${backendRecord.ocrJob?.errorMessage || "No extraction was produced."}`
+                    : "BOL processed and saved by the backend successfully."}
+                </span>
+                {ocrPending && (
+                  <span className="ocr-sr-only">Please wait while OCR finishes.</span>
+                )}
               </div>
 
               <h2>OCR Result</h2>

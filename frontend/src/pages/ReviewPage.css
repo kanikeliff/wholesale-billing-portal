@@ -173,6 +173,7 @@
   /* Original PDF viewer */
   
   .review-document-container {
+    min-width: 0;
     background: #f8f9fb;
     padding: 12px;
   }
@@ -397,6 +398,11 @@
     padding: 12px 14px;
     border-radius: 7px;
     font-size: 13px;
+  }
+  
+  .review-message.ocr-processing-status {
+    display: flex;
+    align-items: flex-start;
   }
   
   .review-message-info {
