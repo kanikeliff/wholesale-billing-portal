@@ -108,6 +108,12 @@ function mount(page, api) {
     field(key) { return find(n => n.props?.className?.startsWith('review-field ') &&
       nodes(n).some(child => child.type === 'input' && child.props.id === key)).props; },
     text() { return content(tree); },
+    hasClass(name) {
+      return nodes(tree).some(n => String(n.props?.className || '').split(/\s+/).includes(name));
+    },
+    liveStatus() {
+      return nodes(tree).filter(n => n.props?.role === 'status' || n.props?.['aria-live'] === 'polite');
+    },
     documentLink() { return find(n => n.type === 'a' && n.props.className === 'review-document-link').props; },
     navigate(next) { id = next; render(); },
     unmount() { for (const slot of slots) slot.cleanup?.(); },
@@ -206,10 +212,14 @@ test('UploadPage polls until OCR completes', async () => {
   page.input('bol-file').onChange({ target: { files: [{ name: 'sample.pdf', type: 'application/pdf', size: 100 }] } });
   page.render(); await page.button('Upload & Process BOL').onClick(); await page.flush();
   assert.equal(page.timers.size, 1); assert.ok(page.text().includes('OCR is still processing'));
+  assert.ok(page.hasClass('ocr-processing-spinner'));
+  assert.ok(page.text().includes('Please wait while OCR finishes.'));
+  assert.ok(page.liveStatus().length > 0);
   const pending = deferred(); record = pending.promise;
   const tick = [...page.timers.values()][0]; const active = tick(); await tick(); assert.equal(calls, 2);
   pending.resolve(billingRecord('OCR_COMPLETE')); await active; page.render();
   assert.equal(page.timers.size, 0); assert.ok(page.text().includes('BOL processed and saved'));
+  assert.ok(!page.hasClass('ocr-processing-spinner'));
   page.unmount();
 });
 
@@ -287,6 +297,7 @@ test('failed OCR upload displays its stored error instead of a success message',
   page.render(); await page.button('Upload & Process BOL').onClick(); await page.flush();
   assert.ok(page.text().includes('OCR failed: Provider could not complete OCR.'));
   assert.ok(!page.text().includes('BOL processed and saved by the backend successfully.'));
+  assert.ok(!page.hasClass('ocr-processing-spinner'));
   page.unmount();
 });
 
@@ -562,6 +573,7 @@ test('read-only workflow states disable all correction fields and explain why Sa
     assert.equal(page.input('line-line-1-netGallons').disabled, true, status);
     assert.equal(page.button('Save Changes').disabled, true, status);
     assert.ok(page.text().includes(message), status);
+    assert.equal(page.hasClass('ocr-processing-spinner'), status === 'UPLOADED' || status === 'OCR_PROCESSING', status);
     page.unmount();
   }
   for (const status of ['OCR_COMPLETE', 'NEEDS_REVIEW', 'RECOMMENDATION_PENDING', 'RECOMMENDATION_READY']) {

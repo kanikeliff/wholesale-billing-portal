@@ -3,6 +3,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
+import "./BolPdfViewer.css";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `${import.meta.env.BASE_URL}pdfjs-assets/pdf.worker.min.mjs`;
 
@@ -23,19 +24,8 @@ export default function BolPdfViewer({
   const [width, setWidth] = useState(520);
 
   return (
-    <div style={{
-      background: "#f4f6f9",
-      padding: "12px",
-      borderRadius: "8px"
-    }}>
-      <div style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: "12px",
-        flexWrap: "wrap",
-        marginBottom: "12px"
-      }}>
+    <div className="bol-pdf-viewer">
+      <div className="bol-pdf-toolbar">
         <div>
           <button
             type="button"
@@ -89,38 +79,30 @@ export default function BolPdfViewer({
         </div>
       </div>
 
-      <div style={{
-        height: "680px",
-        overflow: "auto",
-        background: "#e9edf2",
-        border: "1px solid #e2e6ed",
-        borderRadius: "8px",
-        padding: "12px",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "flex-start"
-      }}>
-        <Document
-          file={fileUrl}
-          options={pdfOptions}
-          onLoadSuccess={({ numPages }) => {
-            setNumPages(numPages);
-            setPageNumber(1);
-          }}
-          loading={<p>Loading PDF...</p>}
-          error={
-            <p style={{ color: "#b91c1c" }}>
-              Unable to display PDF.
-            </p>
-          }
-        >
-          <Page
-          pageNumber={pageNumber}
-          width={width}
-          renderTextLayer={false}
-          renderAnnotationLayer={false}
-/>
-        </Document>
+      <div className="bol-pdf-scroll">
+        <div className="bol-pdf-stage">
+          <Document
+            file={fileUrl}
+            options={pdfOptions}
+            onLoadSuccess={({ numPages }) => {
+              setNumPages(numPages);
+              setPageNumber(1);
+            }}
+            loading={<p>Loading PDF...</p>}
+            error={
+              <p style={{ color: "#b91c1c" }}>
+                Unable to display PDF.
+              </p>
+            }
+          >
+            <Page
+              pageNumber={pageNumber}
+              width={width}
+              renderTextLayer={false}
+              renderAnnotationLayer={false}
+            />
+          </Document>
+        </div>
       </div>
     </div>
   );
