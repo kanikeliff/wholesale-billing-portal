@@ -226,10 +226,50 @@ const [evaluationError, setEvaluationError] = useState("");
     };
   }, [id, record, saving]);
 
+  // Feedback is delivered by a separate worker. Refresh its public status only;
+  // never replace in-flight drafts or apply a response to another review record.
+  useEffect(() => {
+    const feedback = record?.feedback;
+    if (!record || record.recordId !== id || !feedback?.queued ||
+        feedback.status === "SENT" ||
+        (feedback.status === "FAILED" && !feedback.retryable)) return;
+    let active = true;
+    let fetching = false;
+    const recordId = record.recordId;
+    const decisionId = feedback.humanDecisionId;
+    const interval = window.setInterval(async () => {
+      if (fetching) return;
+      fetching = true;
+      try {
+        const updated = await getBillingRecord(recordId);
+        if (!active || updated.recordId !== recordId) return;
+        setRecord(previous => previous?.recordId === recordId &&
+          previous.feedback?.humanDecisionId === decisionId
+          ? { ...previous, feedback: updated.feedback }
+          : previous);
+      } catch (error) {
+        console.error("Feedback delivery status refresh failed:", error);
+      } finally {
+        fetching = false;
+      }
+    }, 3000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [id, record?.recordId, record?.feedback]);
+
   const originalValues = useMemo(
     () => (record ? createDraft(record) : {}),
     [record]
   );
+
+  const canCorrectRecord = !!record && [
+    "OCR_COMPLETE", "NEEDS_REVIEW", "RECOMMENDATION_READY", "RECOMMENDATION_PENDING",
+  ].includes(record.status);
+  const correctionLockMessage = !record || canCorrectRecord ? "" :
+    ["UPLOADED", "OCR_PROCESSING"].includes(record.status)
+      ? "Fields are read-only while OCR is processing. Editing will be available when extraction completes."
+      : ["APPROVED", "REJECTED"].includes(record.status)
+        ? `This record is ${record.status.toLowerCase()} and its review is finalized. Fields cannot be changed.`
+        : "Fields are read-only while this record is in an exception state. Check the OCR error before continuing.";
 
   const hasChanges = Object.keys(draft).some(
     (key) => draft[key] !== originalValues[key]
@@ -357,7 +397,7 @@ const refreshRecommendation = async () => {
 
   // Only submit changed fields. Do not silently save mock/fallback data.
   const saveChanges = async () => {
-    if (!record || saving || evaluating || !hasChanges || !["OCR_COMPLETE", "NEEDS_REVIEW", "RECOMMENDATION_READY", "RECOMMENDATION_PENDING"].includes(record.status)) return;
+    if (!record || saving || evaluating || !hasChanges || !canCorrectRecord) return;
     const original = createDraft(record);
     const modifiedKeys = Object.keys(draft).filter(
       (key) => draft[key] !== original[key]
@@ -589,7 +629,7 @@ const handleDecision = async (decision: HumanDecision) => {
           onChange={(event) =>
             updateDraft(key, event.target.value)
           }
-          disabled={saving || record?.status === "EXCEPTION"}
+          disabled={saving || !canCorrectRecord}
         />
 
         <div className="review-field-meta">
@@ -1039,6 +1079,11 @@ const handleDecision = async (decision: HumanDecision) => {
 
             {/* REVIEW ACTIONS */}
 
+            {correctionLockMessage && (
+              <div className="review-message review-message-info" role="status">
+                {correctionLockMessage}
+              </div>
+            )}
             <div className="review-actions">
               <button
                 className="review-btn review-btn-secondary"
@@ -1050,7 +1095,7 @@ const handleDecision = async (decision: HumanDecision) => {
 
               <button
                 className="review-btn review-btn-primary"
-                disabled={!hasChanges || saving || evaluating || !["OCR_COMPLETE", "NEEDS_REVIEW", "RECOMMENDATION_READY", "RECOMMENDATION_PENDING"].includes(record.status)}
+                disabled={!hasChanges || saving || evaluating || !canCorrectRecord}
                 onClick={saveChanges}
 
               >

@@ -549,3 +549,87 @@ test('feedback status distinguishes queued, retrying, rejected, delivered and hi
     page.unmount();
   }
 });
+
+test('read-only workflow states disable all correction fields and explain why Save Changes is unavailable', async () => {
+  for (const [status, message] of [
+    ['APPROVED', 'its review is finalized'], ['REJECTED', 'its review is finalized'],
+    ['UPLOADED', 'while OCR is processing'], ['OCR_PROCESSING', 'while OCR is processing'],
+    ['EXCEPTION', 'exception state'],
+  ]) {
+    const page = mount('ReviewPage', { getBillingRecord: async () => billingRecord(status) });
+    await page.flush();
+    assert.equal(page.input('carrier').disabled, true, status);
+    assert.equal(page.input('line-line-1-netGallons').disabled, true, status);
+    assert.equal(page.button('Save Changes').disabled, true, status);
+    assert.ok(page.text().includes(message), status);
+    page.unmount();
+  }
+  for (const status of ['OCR_COMPLETE', 'NEEDS_REVIEW', 'RECOMMENDATION_PENDING', 'RECOMMENDATION_READY']) {
+    const page = mount('ReviewPage', { getBillingRecord: async () => billingRecord(status) });
+    await page.flush();
+    assert.equal(page.input('carrier').disabled, false, status);
+    page.input('carrier').onChange({ target: { value: 'Corrected carrier' } });
+    page.render();
+    assert.equal(page.button('Save Changes').disabled, false, status);
+    page.unmount();
+  }
+});
+
+test('feedback delivery updates automatically and stops polling after acknowledgment', async () => {
+  const record = billingRecord('APPROVED');
+  record.feedback = { humanDecisionId: 'decision-1', status: 'PENDING', queued: true, retryable: true, attempts: 0 };
+  let reply = record, reads = 0;
+  const page = mount('ReviewPage', { getBillingRecord: async () => { reads++; return structuredClone(reply); } });
+  await page.flush();
+  assert.equal(page.timers.size, 1);
+  reply = structuredClone(record);
+  reply.feedback.status = 'FAILED'; reply.feedback.attempts = 1;
+  await [...page.timers.values()][0](); page.render();
+  assert.ok(page.text().includes('an automatic retry is queued'));
+  assert.equal(page.timers.size, 1);
+  reply.feedback.status = 'SENT'; reply.feedback.retryable = false;
+  await [...page.timers.values()][0](); page.render();
+  assert.ok(page.text().includes('Delivered to Team A.'));
+  assert.equal(page.timers.size, 0);
+  assert.equal(reads, 3);
+  page.unmount();
+});
+
+test('a late feedback poll cannot update a different record and polling never overlaps', async () => {
+  const record = billingRecord('APPROVED');
+  record.feedback = { humanDecisionId: 'decision-1', status: 'PENDING', queued: true, retryable: true };
+  const pending = deferred(); let reads = 0;
+  const page = mount('ReviewPage', { getBillingRecord: async id => {
+    reads++;
+    if (id === 'rec-2') return billingRecord('NEEDS_REVIEW', 'rec-2');
+    return reads === 1 ? record : pending.promise;
+  } });
+  await page.flush();
+  const tick = [...page.timers.values()][0];
+  const inFlight = tick(); await tick(); assert.equal(reads, 2);
+  page.navigate('rec-2'); await page.flush();
+  pending.resolve({ ...record, feedback: { ...record.feedback, status: 'SENT' } });
+  await inFlight; page.render();
+  assert.ok(!page.text().includes('Delivered to Team A.'));
+  assert.equal(page.timers.size, 0);
+  page.unmount();
+});
+
+test('diesel/unleaded mismatch remains visible without silently applying the suggested E3 mapping', async () => {
+  const record = billingRecord('RECOMMENDATION_READY');
+  record.lineItems[0].product.normalizedValue = 'Ultra Low Sulfur Diesel';
+  record.lineItems[0].e3StockId.normalizedValue = 'UX';
+  record.recommendation = testRecommendation();
+  record.recommendation.mappedEntities.lineItems = [
+    { lineItemId: 'line-1', e3StockId: 'UD', standardName: 'Ultra Low Sulfur Diesel' },
+  ];
+  record.recommendation.exceptionIndicators = [{ code: 'PRODUCT_MISMATCH', severity: 'WARNING',
+    field: 'e3StockId', lineItemId: 'line-1',
+    message: "E3 Stock ID 'UX' differs from the diesel mapping 'UD'." }];
+  const page = mount('ReviewPage', { getBillingRecord: async () => structuredClone(record) });
+  await page.flush();
+  assert.ok(page.text().includes("E3 Stock ID 'UX' differs from the diesel mapping 'UD'."));
+  assert.equal(page.input('line-line-1-e3StockId').value, 'UX');
+  assert.equal(page.button('Save Changes').disabled, true);
+  page.unmount();
+});

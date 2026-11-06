@@ -1,6 +1,6 @@
 import time
 from django.core.management.base import BaseCommand, CommandError
-from django.db import close_old_connections
+from django.db import close_old_connections, OperationalError, InterfaceError
 from application.services.feedback_delivery_service import FeedbackDeliveryService
 
 
@@ -42,10 +42,20 @@ class Command(BaseCommand):
                 metadata.update({"retryable": True, "nextAttemptAt": 0})
                 decision.feedback_metadata = metadata
                 decision.save(update_fields=["feedback_metadata"])
+        self.stdout.write("Feedback worker started.")
         while True:
-            close_old_connections()
             try:
+                close_old_connections()
                 result = service.process_next(options["decision_id"])
+            except (OperationalError, InterfaceError):
+                # Delivery may already have reached Team A. Leave the lease and
+                # immutable payload intact; recovery will safely resend it.
+                if options["once"]:
+                    raise CommandError("Feedback database temporarily unavailable.") from None
+                self.stderr.write("Feedback database temporarily unavailable; retrying.")
+                close_old_connections()
+                time.sleep(options["interval"])
+                continue
             except KeyboardInterrupt:
                 return
             if result:
