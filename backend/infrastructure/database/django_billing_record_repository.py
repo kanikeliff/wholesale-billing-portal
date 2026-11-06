@@ -126,6 +126,22 @@ class DjangoBillingRecordRepository(BillingRecordRepository):
     def list_records(self):
         return [self._to_dict(record) for record in self._read_queryset().order_by("-created_at", "-pk")]
 
+    @transaction.atomic
+    def start_recommendation(self, record_id, expected_updated_at):
+        from application.services.workflow_service import WorkflowService
+        record = BillingRecord.objects.select_for_update().get(pk=record_id)
+        if record.updated_at.isoformat() != expected_updated_at:
+            raise ValueError("Billing record changed; reload before requesting a recommendation.")
+        if record.status != "RECOMMENDATION_PENDING":
+            WorkflowService().validate_transition(record.status, "RECOMMENDATION_PENDING")
+        record.status = "RECOMMENDATION_PENDING"
+        record.save(update_fields=["status", "updated_at"])
+        return record.updated_at
+
+    def evaluation_is_current(self, record_id, expected_updated_at):
+        return BillingRecord.objects.filter(pk=record_id, status="RECOMMENDATION_PENDING",
+                                            updated_at=expected_updated_at).exists()
+
     def update_status(self, record_id, status):
         updated = BillingRecord.objects.filter(
             record_id=record_id

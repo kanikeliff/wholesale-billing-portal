@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "split": "unseen",
+  "documents": [
+    {
+      "documentId": "00000000-0000-0000-0000-000000000000",
+      "sourceSHA256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "expected": {
+        "fields": {
+          "bolNumber": "REPLACE-WITH-INDEPENDENT-LABEL",
+          "contractLifting": null
+        },
+        "lineItems": [
+          {
+            "lineNumber": 1,
+            "product": "REPLACE-WITH-INDEPENDENT-LABEL",
+            "netGallons": 100,
+            "grossGallons": 101,
+            "e3StockId": null
+          }
+        ]
+      }
+    }
+  ]
+}

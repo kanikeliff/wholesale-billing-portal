@@ -38,7 +38,11 @@ class RecommendationService:
 
         current_status = record.get("status")
 
-        if current_status != RecordStatus.RECOMMENDATION_PENDING.value:
+        evaluation_version = None
+        start_method = getattr(self.billing_record_repository, "start_recommendation", None)
+        if start_method is not None and record.get("updatedAt"):
+            evaluation_version = start_method(record_id, record["updatedAt"])
+        elif current_status != RecordStatus.RECOMMENDATION_PENDING.value:
             self.workflow_service.validate_transition(
                 current_status,
                 RecordStatus.RECOMMENDATION_PENDING.value,
@@ -60,6 +64,7 @@ class RecommendationService:
             self._persist_success(
                 record_id,
                 recommendation,
+                expected_updated_at=evaluation_version,
             )
 
             return {
@@ -70,6 +75,9 @@ class RecommendationService:
             }
 
         except IntegrationException as error:
+            current_check = getattr(self.billing_record_repository, "evaluation_is_current", None)
+            if evaluation_version is not None and current_check is not None and not current_check(record_id, evaluation_version):
+                raise ValueError("Billing record changed during evaluation; reload and evaluate again.") from None
             if error.retryable:
                 return {
                     "recordId": record_id,
@@ -93,8 +101,13 @@ class RecommendationService:
         self,
         record_id,
         recommendation,
+        expected_updated_at=None,
     ):
         if self.recommendation_repository is not None:
+            guarded_method = getattr(self.recommendation_repository, "store_revision_if_current", None)
+            if expected_updated_at is not None and guarded_method is not None:
+                guarded_method(record_id, recommendation, expected_updated_at)
+                return
             atomic_method = getattr(
                 self.recommendation_repository,
                 "store_revision_and_mark_ready",

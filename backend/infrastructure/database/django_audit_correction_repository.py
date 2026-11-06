@@ -26,6 +26,17 @@ class DjangoAuditCorrectionRepository:
         "e3StockId": "e3_stock_id",
     }
 
+    def _check_current(self, record, model, model_field, old_value):
+        if record.status not in {"OCR_COMPLETE", "NEEDS_REVIEW", "RECOMMENDATION_PENDING", "RECOMMENDATION_READY"}:
+            raise ValueError(f"Billing record cannot be corrected while in {record.status} status.")
+        current = getattr(model, model_field)
+        if isinstance(current, Decimal):
+            current = float(current)
+        elif isinstance(current, date):
+            current = current.isoformat()
+        if current != old_value:
+            raise ValueError("Field changed during review; reload before saving this correction.")
+
     @transaction.atomic
     def apply_record_field_correction(
         self,
@@ -53,6 +64,7 @@ class DjangoAuditCorrectionRepository:
         except (BillingRecord.DoesNotExist, ValueError):
             raise ValueError("Billing record not found.")
 
+        self._check_current(record, record, model_field, old_value)
         value = new_value
 
         if field_name == "transactionDate":
@@ -127,6 +139,7 @@ class DjangoAuditCorrectionRepository:
         except (LineItem.DoesNotExist, ValueError):
             raise ValueError("Line item not found.")
 
+        self._check_current(record, line_item, model_field, old_value)
         value = new_value
 
         if field_name in {"grossGallons", "netGallons"}:
@@ -136,6 +149,9 @@ class DjangoAuditCorrectionRepository:
                 raise ValueError(
                     f"{field_name} must be numeric."
                 )
+
+        if isinstance(value, Decimal) and (not value.is_finite() or value < 0):
+            raise ValueError(f"{field_name} must be a finite non-negative number.")
 
         setattr(line_item, model_field, value)
 

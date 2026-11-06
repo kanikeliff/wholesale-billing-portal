@@ -1,3 +1,5 @@
+import math
+
 from core.enums.record_status import RecordStatus
 
 
@@ -183,10 +185,10 @@ class CorrectionService:
                     f"{field_name} must be numeric."
                 )
 
+            if not math.isfinite(numeric_value):
+                raise ValueError(f"{field_name} must be a finite number.")
             if numeric_value < 0:
-                raise ValueError(
-                    f"{field_name} cannot be negative."
-                )
+                raise ValueError(f"{field_name} cannot be negative.")
 
     def _get_record_field_value(
         self,

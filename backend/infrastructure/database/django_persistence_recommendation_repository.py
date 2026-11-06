@@ -42,6 +42,16 @@ class DjangoPersistenceRecommendationRepository:
 
             return recommendation
 
+    @transaction.atomic
+    def store_revision_if_current(self, record_id, recommendation_data, expected_updated_at):
+        record = self._lock_record(record_id)
+        if record.status != "RECOMMENDATION_PENDING" or record.updated_at != expected_updated_at:
+            raise ValueError("Billing record changed during evaluation; reload and evaluate again.")
+        recommendation = self._store_revision_locked(record, recommendation_data)
+        record.status = RecordStatus.RECOMMENDATION_READY.value
+        record.save(update_fields=["status", "updated_at"])
+        return recommendation
+
     def get_current(self, record_id):
         return (
             Recommendation.objects
