@@ -8,10 +8,19 @@ from django.test import SimpleTestCase
 
 from infrastructure.ocr.runtime_configuration import (
     OCRRuntimeUnavailable, ensure_live_worker_ready, get_ocr_provider, read_private_key, is_budget_enforced,
+    is_numeric_confidence_enabled,
 )
 
 
 class OCRRuntimeConfigurationTests(SimpleTestCase):
+    @patch.dict(os.environ, {}, clear=True)
+    def test_numeric_confidence_is_enabled_by_default(self):
+        self.assertTrue(is_numeric_confidence_enabled())
+
+    @patch.dict(os.environ, {"OCR_INCLUDE_CONFIDENCE": "false"})
+    def test_numeric_confidence_can_be_explicitly_disabled(self):
+        self.assertFalse(is_numeric_confidence_enabled())
+
     @patch.dict(os.environ, {"OCR_PROVIDER": "sample"})
     @patch("infrastructure.ocr.runtime_configuration.read_runtime_config", return_value={"provider": "live"})
     def test_explicit_sample_mode_overrides_local_live_configuration(self, config):
