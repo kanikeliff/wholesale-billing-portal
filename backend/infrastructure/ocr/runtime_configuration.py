@@ -44,7 +44,7 @@ def is_budget_enforced():
 
 
 def is_numeric_confidence_enabled():
-    value = os.getenv("OCR_INCLUDE_CONFIDENCE", "false").strip().lower()
+    value = os.getenv("OCR_INCLUDE_CONFIDENCE", "true").strip().lower()
     if value not in ("true", "false"):
         raise OCRRuntimeUnavailable("OCR_CONFIGURATION_ERROR", "OCR_INCLUDE_CONFIDENCE must be true or false.")
     return value == "true"
